@@ -1,0 +1,29 @@
+{
+  "name": "dicord",
+  "version": "1.0.0",
+  "description": "Dicord username-based real-time chat",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build": "vite build",
+    "start": "node server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "busboy": "^1.6.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.8.2"
+  }
+}
