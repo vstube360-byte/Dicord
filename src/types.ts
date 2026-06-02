@@ -38,6 +38,7 @@ export interface Message {
   createdAt: number;
   pending?: boolean;
   pinned?: boolean;
+  edited?: boolean;
   embed?: {
     url: string;
     title: string;

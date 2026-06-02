@@ -36,6 +36,7 @@ interface ServerMessage {
   embeds?: any[];
   replyTo?: any;
   pinned?: boolean;
+  edited?: boolean;
 }
 
 interface ServerChat {
@@ -103,6 +104,7 @@ export function toClientMessage(message: ServerMessage): Message {
       mediaSize: message.replyTo.mediaSize,
     } : null,
     pinned: !!message.pinned,
+    edited: !!message.edited,
   };
 }
 
@@ -266,6 +268,20 @@ export async function togglePin(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, with: peerUsername, messageId }),
+  });
+  return toClientMessage(data.message);
+}
+
+export async function editMessage(
+  token: string,
+  peerUsername: string,
+  messageId: string,
+  text: string
+): Promise<Message> {
+  const data = await request<{ ok: boolean; message: ServerMessage }>('/api/edit-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, with: peerUsername, messageId, text }),
   });
   return toClientMessage(data.message);
 }

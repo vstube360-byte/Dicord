@@ -23,6 +23,7 @@ import {
   toggleMute,
   updateProfile,
   togglePin,
+  editMessage,
 } from './lib/api';
 
 const TOKEN_KEY = 'dicord-token';
@@ -181,6 +182,23 @@ export default function App() {
               return {
                 ...chat,
                 messages: chat.messages.filter((m) => m.id !== data.messageId),
+              };
+            }
+            return chat;
+          })
+        );
+        return;
+      }
+
+      if (data.event === 'edit-message' && data.message && data.conversationId) {
+        const message = toClientMessage(data.message);
+        setChats((prev) =>
+          prev.map((chat) => {
+            const expectedId = [currentUser.username, chat.peer.username].sort().join("__");
+            if (expectedId === data.conversationId) {
+              return {
+                ...chat,
+                messages: chat.messages.map((m) => (m.id === message.id ? message : m)),
               };
             }
             return chat;
@@ -472,6 +490,20 @@ export default function App() {
     [token]
   );
 
+  const handleEditMessage = useCallback(
+    async (peerUsername: string, messageId: string, text: string) => {
+      if (!token) {
+        return;
+      }
+      try {
+        await editMessage(token, peerUsername, messageId, text);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : 'Failed to edit message.');
+      }
+    },
+    [token]
+  );
+
   const handleTogglePin = useCallback(
     async (peerUsername: string, messageId: string) => {
       if (!token) {
@@ -552,8 +584,8 @@ export default function App() {
 
           <div
             className={`
-              absolute md:relative z-30 h-full transition-transform duration-300 ease-in-out font-sans
-              ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+              absolute md:relative z-30 h-full transition-transform duration-300 ease-in-out font-sans w-full md:w-auto
+              ${sidebarOpen || !activeChatId ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}
           >
             <Sidebar
@@ -568,7 +600,7 @@ export default function App() {
             />
           </div>
 
-          <div className="flex-1 min-w-0 h-full relative z-10 flex flex-col font-sans">
+          <div className={`flex-1 min-w-0 h-full relative z-10 flex flex-col font-sans ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
             <ChatArea
               chat={chats.find((chat) => chat.id === activeChatId)}
               currentUser={currentUser}
@@ -577,8 +609,10 @@ export default function App() {
               onToggleBlock={handleToggleBlock}
               onToggleMute={handleToggleMute}
               onDeleteMessage={handleDeleteMessage}
+              onEditMessage={handleEditMessage}
               onTogglePin={handleTogglePin}
               onToggleSidebar={() => setSidebarOpen(true)}
+              onBack={() => setActiveChatId(null)}
               onViewProfile={setSelectedProfileUser}
               onUpdateUser={handleUpdateProfile}
               theme={theme}

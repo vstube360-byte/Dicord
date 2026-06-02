@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, MoreVertical, Download, VolumeX, Ban, Volume2, ShieldAlert, X, Copy, Trash2, CheckSquare, Palette, Search, Pin, Camera } from 'lucide-react';
+import { Menu, ArrowLeft, MoreVertical, Download, VolumeX, Ban, Volume2, ShieldAlert, X, Copy, Trash2, CheckSquare, Palette, Search, Pin, Camera } from 'lucide-react';
 import { ChatSession, User, Message } from '../types';
 import { MessageItem } from './MessageItem';
 import { ChatComposer } from './ChatComposer';
@@ -15,8 +16,10 @@ interface ChatAreaProps {
   onToggleBlock?: (username: string) => void;
   onToggleMute?: (username: string) => void;
   onDeleteMessage?: (chatId: string, messageId: string) => void;
+  onEditMessage?: (peerUsername: string, messageId: string, text: string) => void;
   onTogglePin?: (chatId: string, messageId: string) => void;
   onToggleSidebar: () => void;
+  onBack?: () => void;
   onViewProfile?: (user: User) => void;
   onUpdateUser?: (updates: Partial<User>) => void;
   theme: string;
@@ -80,10 +83,11 @@ function getWallpaperStyle(wallpaper: string, isLightMode: boolean) {
   return { background: wallpaper };
 }
 
-export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onTogglePin, onToggleSidebar, onViewProfile, onUpdateUser, theme }: ChatAreaProps) {
+export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, theme }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   
   const [showMenu, setShowMenu] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
@@ -122,7 +126,55 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
     setHighlightedMessageId(null);
     setShowPins(false);
     setShowWallpaperModal(false);
+    
+    setTimeout(() => {
+      composerInputRef.current?.focus();
+    }, 50);
   }, [chat?.id]);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      // 1. If any modal overlay is currently open, do not steal focus
+      const hasModal = document.querySelector('.fixed, [class*="fixed"]');
+      if (hasModal) {
+        return;
+      }
+
+      // 2. Check if they clicked a button, a label, or empty space
+      const isButton = target.closest('button, [role="button"]');
+      const isComposerTextarea = target === composerInputRef.current;
+      
+      if (isComposerTextarea) {
+        return;
+      }
+
+      const isInteractive = target.closest('input, textarea, a, img, iframe');
+      
+      const isButtonClick = !!isButton;
+      const isBgClick = !isInteractive && !window.getSelection()?.toString();
+
+      if (isButtonClick || isBgClick) {
+        setTimeout(() => {
+          const activeEl = document.activeElement;
+          if (
+            activeEl &&
+            (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+            activeEl !== composerInputRef.current
+          ) {
+            return;
+          }
+          composerInputRef.current?.focus();
+        }, 0);
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, []);
 
   const isSelectionMode = selectionModeEnabled || selectedMessageIds.size > 0;
 
@@ -317,10 +369,11 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
         <header className="h-[80px] px-8 flex items-center justify-between glass border-b border-theme-border shrink-0 z-10 sticky top-0 transition-colors">
           <div className="flex items-center space-x-4">
             <button
-              onClick={onToggleSidebar}
-              className="md:hidden w-10 h-10 rounded-xl glass flex items-center justify-center text-theme-text hover:bg-white/10 transition-colors -ml-4 mr-2"
+              type="button"
+              onClick={onBack || onToggleSidebar}
+              className="md:hidden w-10 h-10 rounded-xl glass flex items-center justify-center text-theme-text hover:bg-white/10 transition-colors -ml-4 mr-2 cursor-pointer"
             >
-              <Menu size={20} />
+              <ArrowLeft size={20} />
             </button>
             
             <div 
@@ -368,6 +421,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                 onClick={() => {
                   setShowSearch(!showSearch);
                   setShowPins(false);
+                  composerInputRef.current?.focus();
                 }}
                 className={`w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text transition-all ${
                   showSearch ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : ''
@@ -381,6 +435,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                 onClick={() => {
                   setShowPins(!showPins);
                   setShowSearch(false);
+                  composerInputRef.current?.focus();
                 }}
                 className={`w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text transition-all ${
                   showPins ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : ''
@@ -391,7 +446,10 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               </button>
 
               <button
-                onClick={() => setSelectionModeEnabled(true)}
+                onClick={() => {
+                  setSelectionModeEnabled(true);
+                  composerInputRef.current?.focus();
+                }}
                 className="w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text"
                 title="Select Messages"
               >
@@ -399,7 +457,10 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               </button>
 
               <button
-                onClick={() => setShowMenu(!showMenu)}
+                onClick={() => {
+                  setShowMenu(!showMenu);
+                  composerInputRef.current?.focus();
+                }}
                 className="w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text"
               >
                 <MoreVertical size={18} />
@@ -418,6 +479,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         setShowWallpaperModal(true);
                         setShowMenu(false);
+                        composerInputRef.current?.focus();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
@@ -426,7 +488,10 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     </button>
 
                     <button
-                      onClick={handleDownloadChat}
+                      onClick={() => {
+                        handleDownloadChat();
+                        composerInputRef.current?.focus();
+                      }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
                       <Download size={16} className="opacity-80" />
@@ -436,6 +501,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         onToggleMute?.(chat.peer.username);
                         setShowMenu(false);
+                        composerInputRef.current?.focus();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
@@ -455,6 +521,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         onToggleBlock?.(chat.peer.username);
                         setShowMenu(false);
+                        composerInputRef.current?.focus();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-500/10 text-theme-text hover:text-rose-400 text-sm text-left transition-colors cursor-pointer border-t border-theme-border mt-1 pt-2.5"
                     >
@@ -509,18 +576,31 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     message={message}
                     isMine={message.authorId === currentUser.id}
                     peer={chat.peer}
-                    onDelete={onDeleteMessage ? () => onDeleteMessage(chat.id, message.id) : undefined}
+                    onDelete={onDeleteMessage ? () => {
+                      onDeleteMessage(chat.id, message.id);
+                      composerInputRef.current?.focus();
+                    } : undefined}
+                    onEdit={onEditMessage ? (messageId, text) => onEditMessage(chat.id, messageId, text) : undefined}
+                    onEditEnd={() => {
+                      composerInputRef.current?.focus();
+                    }}
                     onViewProfile={onViewProfile}
                     onReact={(reaction) => onReact?.(message.id, reaction)}
                     currentUserId={currentUser.id}
                     isSelectionMode={isSelectionMode}
                     isSelected={selectedMessageIds.has(message.id)}
                     onToggleSelect={() => handleToggleSelect(message.id)}
-                    onReply={() => setReplyToMessage(message)}
+                    onReply={() => {
+                      setReplyToMessage(message);
+                      composerInputRef.current?.focus();
+                    }}
                     isGroupedWithPrevious={isGroupedWithPrevious}
                     isGroupedWithNext={isGroupedWithNext}
                     isHighlighted={message.id === highlightedMessageId}
-                    onPin={onTogglePin ? () => onTogglePin(chat.id, message.id) : undefined}
+                    onPin={onTogglePin ? () => {
+                      onTogglePin(chat.id, message.id);
+                      composerInputRef.current?.focus();
+                    } : undefined}
                   />
                 );
               })}
@@ -541,6 +621,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
             </div>
           ) : (
             <ChatComposer
+              inputRef={composerInputRef}
               onSend={(text, gifUrl, mediaUrl, mediaType, mediaSize, embeds) => {
                 onSend(text, gifUrl, mediaUrl, mediaType, mediaSize, embeds, replyToMessage?.id);
                 setReplyToMessage(null);
@@ -792,15 +873,16 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
       </div>
 
       {/* Wallpaper Selection Modal */}
-      <AnimatePresence>
-        {showWallpaperModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="w-full max-w-md bg-theme-panel border border-theme-border rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left font-sans"
-            >
+      {createPortal(
+        <AnimatePresence>
+          {showWallpaperModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in text-theme-text">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="w-full max-w-md bg-theme-panel border border-theme-border rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left font-sans"
+              >
               {/* Modal Header */}
               <div className="flex items-center justify-between pb-2.5 border-b border-theme-border">
                 <h3 className="font-bold text-base text-theme-text flex items-center gap-2">
@@ -944,7 +1026,9 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
   FileType,
   Check,
   Reply,
-  Pin
+  Pin,
+  Pencil
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 
@@ -113,6 +114,221 @@ function getFileConfig(url: string, mediaType: string) {
   }
 }
 
+function parseMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeBlockContent: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        elements.push(
+          <pre key={`code-${i}`} className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 select-text">
+            <code>{codeBlockContent.join('\n')}</code>
+          </pre>
+        );
+        inCodeBlock = false;
+        codeBlockContent = [];
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockContent.push(line);
+      continue;
+    }
+
+    if (line.startsWith('> ')) {
+      const quoteText = line.slice(2);
+      elements.push(
+        <blockquote key={`quote-${i}`} className="border-l-4 border-slate-500/40 pl-3 italic text-theme-muted my-1 text-left select-text">
+          {parseInlineMarkdown(quoteText)}
+        </blockquote>
+      );
+      continue;
+    }
+
+    if (line.startsWith('# ')) {
+      elements.push(
+        <h1 key={`h1-${i}`} className="text-xl sm:text-2xl font-extrabold tracking-tight mt-1.5 mb-1 text-left leading-normal select-text text-white">
+          {parseInlineMarkdown(line.slice(2))}
+        </h1>
+      );
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      elements.push(
+        <h2 key={`h2-${i}`} className="text-lg sm:text-xl font-bold tracking-tight mt-1 mb-0.5 text-left leading-normal select-text text-white">
+          {parseInlineMarkdown(line.slice(3))}
+        </h2>
+      );
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      elements.push(
+        <h3 key={`h3-${i}`} className="text-base sm:text-lg font-bold mt-1 text-left leading-normal select-text text-white">
+          {parseInlineMarkdown(line.slice(4))}
+        </h3>
+      );
+      continue;
+    }
+
+    elements.push(
+      <div key={`line-${i}`} className="min-h-[1.2rem] select-text">
+        {parseInlineMarkdown(line)}
+      </div>
+    );
+  }
+
+  if (inCodeBlock && codeBlockContent.length > 0) {
+    elements.push(
+      <pre key="code-unclosed" className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 select-text">
+        <code>{codeBlockContent.join('\n')}</code>
+      </pre>
+    );
+  }
+
+  return <>{elements}</>;
+}
+
+function parseInlineMarkdown(text: string): React.ReactNode {
+  if (!text) return '';
+
+  let parts: { type: 'text' | 'code' | 'bold' | 'italic' | 'bold_italic' | 'strike'; text: string }[] = [
+    { type: 'text', text }
+  ];
+
+  // 1. Parse inline code: `code`
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /`([^`]+)`/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'code' as const, text: match[1] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
+  // 2. Parse bold italic: ***text***
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /\*\*\*([^*]+)\*\*\*/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'bold_italic' as const, text: match[1] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
+  // 3. Parse bold: **text**
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /\*\*([^*]+)\*\*/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'bold' as const, text: match[1] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
+  // 4. Parse italic: *text* or _text_
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /(\*|_)([^*_]+)\1/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'italic' as const, text: match[2] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
+  // 5. Parse strikethrough: ~~text~~
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /~~([^~]+)~~/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'strike' as const, text: match[1] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
+  return (
+    <>
+      {parts.map((part, idx) => {
+        switch (part.type) {
+          case 'code':
+            return (
+              <code key={idx} className="bg-black/25 px-1.5 py-0.5 rounded font-mono text-[11px] border border-theme-border/50 text-indigo-200">
+                {part.text}
+              </code>
+            );
+          case 'bold_italic':
+            return <strong key={idx}><em>{part.text}</em></strong>;
+          case 'bold':
+            return <strong key={idx} className="font-extrabold">{part.text}</strong>;
+          case 'italic':
+            return <em key={idx}>{part.text}</em>;
+          case 'strike':
+            return <del key={idx} className="line-through opacity-75">{part.text}</del>;
+          default:
+            return part.text;
+        }
+      })}
+    </>
+  );
+}
+
 interface MessageItemProps {
   message: Message;
   isMine: boolean;
@@ -129,6 +345,8 @@ interface MessageItemProps {
   isGroupedWithNext?: boolean;
   isHighlighted?: boolean;
   onPin?: () => void;
+  onEdit?: (messageId: string, text: string) => void | Promise<void>;
+  onEditEnd?: () => void;
 }
 
 export function MessageItem({ 
@@ -146,8 +364,44 @@ export function MessageItem({
   isGroupedWithPrevious = false,
   isGroupedWithNext = false,
   isHighlighted = false,
-  onPin
+  onPin,
+  onEdit,
+  onEditEnd
 }: MessageItemProps) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editText, setEditText] = React.useState(message.text);
+
+  React.useEffect(() => {
+    setEditText(message.text);
+  }, [message.text]);
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditText(message.text);
+    onEditEnd?.();
+  };
+
+  const handleSaveEdit = async () => {
+    const trimmed = editText.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (trimmed === message.text) {
+      setIsEditing(false);
+      onEditEnd?.();
+      return;
+    }
+    try {
+      if (onEdit) {
+        await onEdit(message.id, trimmed);
+      }
+      setIsEditing(false);
+      onEditEnd?.();
+    } catch (err) {
+      console.error('Failed to save message edit:', err);
+    }
+  };
+
   const timeString = new Date(message.createdAt).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -272,6 +526,19 @@ export function MessageItem({
                 <Pin size={13} className={message.pinned ? "fill-indigo-400/20" : ""} />
               </button>
             )}
+            {isMine && onEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                }}
+                className="w-7 h-7 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
+                title="Edit message"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
             {isMine && onDelete && (
               <button
                 type="button"
@@ -315,8 +582,12 @@ export function MessageItem({
             }`}
           >
             <Reply size={10} className="shrink-0 scale-x-[-1] opacity-75" />
-            <span>
-              {message.replyTo.authorName || message.replyTo.author} replied:
+            <span className="italic hover:underline font-bold">
+              {message.authorName || message.authorId}
+            </span>
+            <span className="opacity-75 font-normal mx-0.5">replied to</span>
+            <span className="italic hover:underline font-bold">
+              {message.replyTo.authorName || message.replyTo.author}
             </span>
             <span className="truncate italic font-medium opacity-80 max-w-[150px]">
               "{message.replyTo.text || (message.replyTo.gifUrl ? 'GIF' : 'Attachment')}"
@@ -324,9 +595,14 @@ export function MessageItem({
           </div>
         )}
 
-        {/* Text Bubble: Only render if there's actual text, a GIF, or standard image/video attachments */}
-        {(message.text || message.gifUrl || (message.mediaUrl && message.mediaType !== 'document')) && (
+        {/* Text Bubble: Only render if there's actual text, a GIF, or standard image/video attachments, or if editing */}
+        {(message.text || message.gifUrl || (message.mediaUrl && message.mediaType !== 'document') || isEditing) && (
           <div
+            onDoubleClick={() => {
+              if (isMine && !message.pending && onEdit) {
+                setIsEditing(true);
+              }
+            }}
             className={`relative ${cornersClass} ${
               isMine
                 ? 'gradient-msg p-4 text-white leading-relaxed w-full'
@@ -334,10 +610,54 @@ export function MessageItem({
             } ${message.pending ? 'opacity-50 saturate-50 cursor-not-allowed select-none' : ''}`}
           >
             {/* Render Caption / Message Text */}
-            {message.text && (
-              <span className={`relative z-10 break-words whitespace-pre-wrap ${isAttachment ? 'block mb-2 font-medium' : ''}`}>
-                {message.text}
-              </span>
+            {isEditing ? (
+              <div className="relative z-10 w-full text-left mt-1">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveEdit();
+                    } else if (e.key === 'Escape') {
+                      cancelEdit();
+                    }
+                  }}
+                  className="w-full bg-black/30 border border-indigo-500/40 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-500 resize-none font-medium leading-relaxed"
+                  rows={Math.max(1, editText.split('\n').length)}
+                  autoFocus
+                />
+                <div className="text-[10px] text-theme-muted mt-1 select-none flex gap-1.5 font-semibold">
+                  <span>escape to</span>
+                  <button 
+                    type="button" 
+                    onClick={cancelEdit}
+                    className="text-rose-400 hover:underline cursor-pointer"
+                  >
+                    cancel
+                  </button>
+                  <span>•</span>
+                  <span>enter to</span>
+                  <button 
+                    type="button" 
+                    onClick={handleSaveEdit}
+                    className="text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              message.text && (
+                <div className={`relative z-10 break-words ${isAttachment ? 'block mb-2 font-medium' : ''}`}>
+                  {parseMarkdown(message.text)}
+                  {message.edited && (
+                    <span className="text-[9px] text-theme-muted/80 ml-1.5 select-none hover:text-indigo-400 font-bold uppercase tracking-wider">
+                      (edited)
+                    </span>
+                  )}
+                </div>
+              )
             )}
 
             {/* Render GIF Attachments */}

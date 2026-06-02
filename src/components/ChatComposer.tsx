@@ -7,6 +7,7 @@ interface ComposerProps {
   onSend: (text: string, gifUrl?: string, mediaUrl?: string, mediaType?: string, mediaSize?: number, embeds?: any[]) => void;
   replyToMessage?: Message | null;
   onCancelReply?: () => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 function formatBytes(bytes: number) {
@@ -167,8 +168,21 @@ const getFallbackGifs = (query: string): string[] => {
   return FALLBACK_GIFS.trending;
 };
 
-export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: ComposerProps) {
+export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef }: ComposerProps) {
   const [text, setText] = useState('');
+  const localRef = React.useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef || localRef;
+
+  React.useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      // 1 line is ~24px, 6 lines is ~144px. Cap height at 144px.
+      const targetHeight = Math.min(144, textarea.scrollHeight);
+      textarea.style.height = `${targetHeight}px`;
+    }
+  }, [text]);
+
   const [showEmojis, setShowEmojis] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [activeCategory, setActiveCategory] = useState('smileys');
@@ -270,6 +284,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
   const handleRemoveEmbed = (url: string) => {
     setIgnoredUrls((prev) => [...prev, url]);
     setResolvedEmbeds((prev) => prev.filter((embed) => (embed.requestedUrl || embed.url) !== url));
+    textareaRef.current?.focus();
   };
 
   const [gifSearchInput, setGifSearchInput] = useState('');
@@ -348,6 +363,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
       setUploading(false);
       setUploadProgress(0);
       setUploadFileName('');
+      textareaRef.current?.focus();
     };
 
     xhr.onerror = () => {
@@ -356,6 +372,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
       setUploading(false);
       setUploadProgress(0);
       setUploadFileName('');
+      textareaRef.current?.focus();
     };
 
     xhr.onabort = () => {
@@ -363,6 +380,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
       setUploading(false);
       setUploadProgress(0);
       setUploadFileName('');
+      textareaRef.current?.focus();
     };
 
     xhr.send(formData);
@@ -372,6 +390,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
     if (xhrRef) {
       xhrRef.abort();
     }
+    textareaRef.current?.focus();
   };
 
   const handleRemoveMedia = () => {
@@ -379,6 +398,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
     setMediaType('');
     setMediaName('');
     setMediaSize(0);
+    textareaRef.current?.focus();
   };
 
   const toggleFavorite = (url: string) => {
@@ -393,6 +413,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
       }
       return next;
     });
+    textareaRef.current?.focus();
   };
 
   React.useEffect(() => {
@@ -463,15 +484,18 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
     setResolvingUrls({});
     setShowEmojis(false);
     setShowGifPicker(false);
+    textareaRef.current?.focus();
   };
 
   const handleEmojiClick = (emoji: string) => {
     setText((prev) => prev + emoji);
+    textareaRef.current?.focus();
   };
 
   const handleGifSelect = (url: string) => {
     onSend('', url);
     setShowGifPicker(false);
+    textareaRef.current?.focus();
   };
 
   return (
@@ -491,7 +515,10 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setActiveCategory(cat.id)}
+                  onClick={() => {
+                    setActiveCategory(cat.id);
+                    textareaRef.current?.focus();
+                  }}
                   className={`w-9 h-9 text-lg shrink-0 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
                     activeCategory === cat.id
                       ? 'bg-indigo-500/20 text-indigo-300 font-bold scale-105 border-indigo-500/30'
@@ -534,7 +561,10 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
               <div className="flex gap-2.5 items-center">
                 <button
                   type="button"
-                  onClick={() => setShowFavorites(false)}
+                  onClick={() => {
+                    setShowFavorites(false);
+                    textareaRef.current?.focus();
+                  }}
                   className={`text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${
                     !showFavorites ? 'text-indigo-300' : 'text-theme-muted hover:text-theme-text'
                   }`}
@@ -544,7 +574,10 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
                 <span className="text-slate-700 text-xs">|</span>
                 <button
                   type="button"
-                  onClick={() => setShowFavorites(true)}
+                  onClick={() => {
+                    setShowFavorites(true);
+                    textareaRef.current?.focus();
+                  }}
                   className={`text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
                     showFavorites ? 'text-indigo-300' : 'text-theme-muted hover:text-theme-text'
                   }`}
@@ -554,7 +587,10 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
               </div>
               <button
                 type="button"
-                onClick={() => setShowGifPicker(false)}
+                onClick={() => {
+                  setShowGifPicker(false);
+                  textareaRef.current?.focus();
+                }}
                 className="text-theme-muted hover:text-theme-text transition-colors cursor-pointer"
               >
                 <X size={14} />
@@ -865,7 +901,10 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
           </div>
           <button
             type="button"
-            onClick={onCancelReply}
+            onClick={() => {
+              onCancelReply?.();
+              textareaRef.current?.focus();
+            }}
             className="w-6 h-6 rounded-full hover:bg-white/10 text-theme-muted hover:text-white flex items-center justify-center cursor-pointer transition-colors"
             title="Cancel Reply"
           >
@@ -879,7 +918,11 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
         <div className="flex-1 glass rounded-2xl px-6 flex items-center space-x-4 border-theme-border relative">
           <button
             type="button"
-            onClick={() => { setShowEmojis(!showEmojis); setShowGifPicker(false); }}
+            onClick={() => {
+              setShowEmojis(!showEmojis);
+              setShowGifPicker(false);
+              textareaRef.current?.focus();
+            }}
             className="text-theme-muted hover:text-indigo-400 cursor-pointer shrink-0 py-3"
             title="Emoji"
           >
@@ -905,7 +948,11 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
 
           <button
             type="button"
-            onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojis(false); }}
+            onClick={() => {
+              setShowGifPicker(!showGifPicker);
+              setShowEmojis(false);
+              textareaRef.current?.focus();
+            }}
             className={`text-[10px] font-bold tracking-wider px-2 h-7 rounded-lg border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
               showGifPicker
                 ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 scale-105 shadow-md shadow-indigo-600/10'
@@ -916,12 +963,20 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply }: C
             GIF
           </button>
           
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }
+            }}
             placeholder="Type a message..."
-            className="bg-transparent border-none outline-none flex-1 text-theme-text placeholder-slate-500 py-3 font-medium scrollbar-hide"
+            className="bg-transparent border-none outline-none flex-1 text-theme-text placeholder-slate-500 py-3 font-medium scrollbar-hide resize-none overflow-y-auto"
+            style={{ height: 'auto', maxHeight: '144px', alignSelf: 'center' }}
+            rows={1}
           />
 
           {/* Paste GIF link button removed. Detection is automatic */}

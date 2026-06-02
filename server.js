@@ -1388,6 +1388,119 @@ async function handleApi(request, response, requestUrl) {
     return;
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/edit-message") {
+    const peerUsername = sanitizeUsername(postBody.with);
+    const messageId = sanitizeId(postBody.messageId);
+    const text = sanitizeMessage(postBody.text);
+
+    if (!peerUsername || !messageId || text === undefined) {
+      sendJson(response, 400, { error: "Chat peer, message ID, and text are required." });
+      return;
+    }
+
+    const peer = db.users[peerUsername];
+    if (!peer) {
+      sendJson(response, 400, { error: "Chat peer not found." });
+      return;
+    }
+
+    const conversation = await ensureConversation(user.username, peerUsername);
+    const messageIndex = conversation.messages.findIndex((entry) => entry.id === messageId);
+    if (messageIndex === -1) {
+      sendJson(response, 404, { error: "Message not found." });
+      return;
+    }
+
+    const message = conversation.messages[messageIndex];
+    if (message.author !== user.username) {
+      sendJson(response, 403, { error: "You can only edit your own messages." });
+      return;
+    }
+
+    message.text = text;
+    message.edited = true;
+    message.editedAt = new Date().toISOString();
+
+    // Re-resolve links if the text changed
+    const URL_REGEX = /https?:\/\/[^\s]+/gi;
+    const matches = text.match(URL_REGEX) || [];
+    const uniqueUrls = Array.from(new Set(matches));
+
+    if (uniqueUrls.length > 0) {
+      setTimeout(async () => {
+        try {
+          const resolvedList = [];
+          for (const url of uniqueUrls) {
+            const urlLower = url.toLowerCase().split('?')[0];
+            let resolvedItem = null;
+
+            if (/\.(gif|png|jpg|jpeg|webp)(\?|$)/i.test(urlLower)) {
+              resolvedItem = { type: "image", url };
+            } else if (/\.(mp4|webm|ogg)(\?|$)/i.test(urlLower)) {
+              resolvedItem = { type: "video", url };
+            } else {
+              const resolvedGif = await resolveGifUrl(url);
+              if (resolvedGif && resolvedGif !== url) {
+                resolvedItem = { type: "gif", url: resolvedGif };
+              } else {
+                const embedData = await resolveEmbed(url);
+                if (embedData) {
+                  resolvedItem = { type: "embed", ...embedData };
+                } else {
+                  const parsedUrl = new URL(url);
+                  resolvedItem = {
+                    type: "embed",
+                    url,
+                    title: parsedUrl.hostname,
+                    description: "",
+                    image: "",
+                    siteName: parsedUrl.hostname.replace("www.", "")
+                  };
+                }
+              }
+            }
+
+            if (resolvedItem) {
+              resolvedItem.requestedUrl = url;
+              resolvedList.push(resolvedItem);
+            }
+          }
+
+          if (resolvedList.length > 0) {
+            const currentConv = db.conversations[conversation.id];
+            if (currentConv) {
+              const msgIndex = currentConv.messages.findIndex((m) => m.id === message.id);
+              if (msgIndex >= 0) {
+                currentConv.messages[msgIndex].embeds = resolvedList;
+                currentConv.messages[msgIndex].embed = resolvedList[0] || null;
+                await saveDb();
+
+                const payload = { event: "edit-message", conversationId: conversation.id, message: currentConv.messages[msgIndex] };
+                sendEvent(user.username, payload);
+                sendEvent(peerUsername, payload);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to re-resolve embeds on edit:", e);
+        }
+      }, 0);
+    } else {
+      // Clear embeds if no links are present
+      message.embeds = [];
+      message.embed = null;
+    }
+
+    db.conversations[conversation.id].messages = conversation.messages;
+    await saveDb();
+
+    const payloadForClients = { event: "edit-message", conversationId: conversation.id, message };
+    sendEvent(user.username, payloadForClients);
+    sendEvent(peerUsername, payloadForClients);
+    sendJson(response, 200, { ok: true, message });
+    return;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/pin") {
     const peerUsername = sanitizeUsername(postBody.with);
     const messageId = sanitizeId(postBody.messageId);
