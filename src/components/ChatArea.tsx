@@ -58,29 +58,26 @@ function getWallpaperStyle(wallpaper: string, isLightMode: boolean) {
   if (wallpaper.startsWith('http') || wallpaper.startsWith('data:') || wallpaper.startsWith('/')) {
     const overlayColor = isLightMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(11, 14, 20, 0.5)';
     return {
-      backgroundImage: `linear-gradient(${overlayColor}, ${overlayColor}), url("${wallpaper}")`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundAttachment: 'local'
+      background: `linear-gradient(${overlayColor}, ${overlayColor}), url("${wallpaper}") center/cover local no-repeat`
     };
   }
   if (wallpaper.startsWith('gradient-')) {
     switch (wallpaper) {
       case 'gradient-aurora':
-        return { backgroundImage: 'linear-gradient(135deg, #0b3f2a 0%, #111827 100%)' };
+        return { background: 'linear-gradient(135deg, #0b3f2a 0%, #111827 100%)' };
       case 'gradient-sunset':
-        return { backgroundImage: 'linear-gradient(135deg, #4c1d95 0%, #0f172a 100%)' };
+        return { background: 'linear-gradient(135deg, #4c1d95 0%, #0f172a 100%)' };
       case 'gradient-neon':
-        return { backgroundImage: 'linear-gradient(135deg, #1e1b4b 0%, #030712 100%)' };
+        return { background: 'linear-gradient(135deg, #1e1b4b 0%, #030712 100%)' };
       case 'gradient-cherry':
-        return { backgroundImage: 'linear-gradient(135deg, #4c0519 0%, #0b0f19 100%)' };
+        return { background: 'linear-gradient(135deg, #4c0519 0%, #0b0f19 100%)' };
       case 'gradient-ocean':
-        return { backgroundImage: 'linear-gradient(135deg, #042f2e 0%, #0b0f19 100%)' };
+        return { background: 'linear-gradient(135deg, #042f2e 0%, #0b0f19 100%)' };
       default:
         return {};
     }
   }
-  return { backgroundColor: wallpaper };
+  return { background: wallpaper };
 }
 
 export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onTogglePin, onToggleSidebar, onViewProfile, onUpdateUser, theme }: ChatAreaProps) {
