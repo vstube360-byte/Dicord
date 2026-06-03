@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, User } from '../types';
 import { 
@@ -447,6 +447,15 @@ export function MessageItem({
   const hasMovedRef = useRef(false);
   const isTouchRef = useRef(false);
 
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  useEffect(() => {
+    setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isTouchRef.current = e.pointerType === 'touch';
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     isTouchRef.current = true;
     hasMovedRef.current = false;
@@ -659,8 +668,10 @@ export function MessageItem({
         
         {/* Action Menu (Reply, Pin, Delete) */}
         {!message.pending && !isSelectionMode && (
-          <div className={`absolute top-0 opacity-0 group-hover:opacity-100 flex items-center bg-theme-card/95 border border-theme-border rounded-xl p-0.5 shadow-xl z-30 transition-all duration-150 hover:scale-105 pointer-events-auto ${
+          <div className={`absolute top-0 flex items-center bg-theme-card/95 border border-theme-border rounded-xl p-0.5 shadow-xl z-30 transition-all duration-150 hover:scale-105 pointer-events-auto ${
             isMine ? 'right-full mr-2.5' : 'left-full ml-2.5'
+          } ${
+            isTouchDevice ? 'hidden' : 'opacity-0 group-hover:opacity-100'
           }`}>
             <button
               type="button"
@@ -760,6 +771,7 @@ export function MessageItem({
         {/* Text Bubble: Only render if there's actual text, a GIF, or standard image/video attachments, or if editing */}
         {(message.text || message.gifUrl || (message.mediaUrl && message.mediaType !== 'document') || isEditing) && (
           <div
+            onPointerDown={handlePointerDown}
             onDoubleClick={(e) => {
               if (isTouchRef.current) {
                 isTouchRef.current = false;
@@ -848,21 +860,34 @@ export function MessageItem({
                     className="max-h-72 max-w-full object-contain cursor-pointer transition-transform duration-300 group-hover/img:scale-[1.01]"
                     onClick={() => window.open(message.mediaUrl, '_blank')}
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-2.5 transition-opacity duration-200 pointer-events-none">
+                  {isTouchDevice ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         window.open(message.mediaUrl, '_blank');
                       }}
-                      className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center pointer-events-auto shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 border border-white/10 text-white flex items-center justify-center pointer-events-auto shadow-lg active:scale-95 transition-all cursor-pointer z-20"
                       title="Open full size"
                     >
-                      <Download size={16} />
+                      <Download size={13} />
                     </button>
-                    <span className="text-[10px] font-semibold text-white/90 truncate max-w-[80%] px-2 py-0.5 rounded bg-black/40 border border-theme-border">
-                      {config.name}
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-2.5 transition-opacity duration-200 pointer-events-none">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(message.mediaUrl, '_blank');
+                        }}
+                        className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center pointer-events-auto shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        title="Open full size"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <span className="text-[10px] font-semibold text-white/90 truncate max-w-[80%] px-2 py-0.5 rounded bg-black/40 border border-theme-border">
+                        {config.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -880,8 +905,10 @@ export function MessageItem({
 
             {/* Quick Reactions Bar */}
             {onReact && !message.pending && (
-              <div className={`absolute top-full mt-1.5 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-200 flex items-center bg-theme-card border border-theme-border rounded-full px-1 py-0.5 shadow-xl z-20 ${
+              <div className={`absolute top-full mt-1.5 pointer-events-none transition-opacity duration-200 flex items-center bg-theme-card border border-theme-border rounded-full px-1 py-0.5 shadow-xl z-20 ${
                 isMine ? 'right-4' : 'left-4'
+              } ${
+                isTouchDevice ? 'hidden' : 'opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto'
               }`}>
                 {['👍', '❤️', '😂', '🔥', '🎉', '😢'].map((emoji) => (
                   <button

@@ -88,6 +88,10 @@ function getWallpaperStyle(wallpaper: string, isLightMode: boolean) {
 }
 
 export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, onShowGroupSettings, theme, chats = [], onShowAlert, onShowConfirm }: ChatAreaProps) {
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  useEffect(() => {
+    setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
@@ -304,13 +308,13 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
   };
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, []);
 
   const handleDownloadChat = () => {
@@ -919,7 +923,9 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                             e.stopPropagation();
                             onTogglePin?.(chat.id, message.id);
                           }}
-                          className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 text-theme-muted hover:text-rose-400 p-1 hover:bg-white/5 rounded-lg transition-all duration-150 cursor-pointer"
+                          className={`absolute right-3 top-3 text-theme-muted hover:text-rose-400 p-1 hover:bg-white/5 rounded-lg transition-all duration-150 cursor-pointer ${
+                            isTouchDevice ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          }`}
                           title="Unpin message"
                         >
                           <X size={14} />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, Image as ImageIcon, Smile, X, Search, Heart, Paperclip, FileText, CornerUpLeft } from 'lucide-react';
 import { Message, User } from '../types';
@@ -173,6 +173,10 @@ const getFallbackGifs = (query: string): string[] => {
 
 export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef, mentionableUsers = [], onShowAlert }: ComposerProps) {
   const [text, setText] = useState('');
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  useEffect(() => {
+    setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
+  }, []);
   const localRef = React.useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef || localRef;
 
@@ -785,7 +789,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
                               toggleFavorite(gifUrl);
                             }}
                             className={`absolute top-1 right-1 p-1 rounded-full bg-black/50 hover:bg-black/75 transition-all z-10 ${
-                              isFav ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                              isFav || isTouchDevice ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                             }`}
                             title={isFav ? "Unfavorite" : "Favorite"}
                           >
