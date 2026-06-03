@@ -107,6 +107,134 @@ html.theme-cyberpunk {
   color-scheme: dark;
 }
 
+/* Theme Midnight */
+html.theme-midnight {
+  --bg-main: #030712;
+  --bg-panel: #0b0f19;
+  --bg-card: #111827;
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --border-color: rgba(99, 102, 241, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(99, 102, 241, 0.12);
+  --sidebar-active-bg: rgba(99, 102, 241, 0.1);
+  --gradient-msg-start: #3b82f6;
+  --gradient-msg-end: #1d4ed8;
+  color-scheme: dark;
+}
+
+/* Theme Slate */
+html.theme-slate {
+  --bg-main: #0f172a;
+  --bg-panel: #1e293b;
+  --bg-card: #334155;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --border-color: rgba(148, 163, 184, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(148, 163, 184, 0.15);
+  --sidebar-active-bg: rgba(148, 163, 184, 0.1);
+  --gradient-msg-start: #64748b;
+  --gradient-msg-end: #475569;
+  color-scheme: dark;
+}
+
+/* Theme Violet */
+html.theme-violet {
+  --bg-main: #0f051d;
+  --bg-panel: #180a2b;
+  --bg-card: #220f3a;
+  --text-main: #faf5ff;
+  --text-muted: #d8b4fe;
+  --border-color: rgba(168, 85, 247, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(168, 85, 247, 0.15);
+  --sidebar-active-bg: rgba(168, 85, 247, 0.1);
+  --gradient-msg-start: #a855f7;
+  --gradient-msg-end: #7e22ce;
+  color-scheme: dark;
+}
+
+/* Theme Spruce */
+html.theme-spruce {
+  --bg-main: #04100b;
+  --bg-panel: #0a1c14;
+  --bg-card: #122c20;
+  --text-main: #f0fdf4;
+  --text-muted: #86efac;
+  --border-color: rgba(34, 197, 94, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(34, 197, 94, 0.15);
+  --sidebar-active-bg: rgba(34, 197, 94, 0.1);
+  --gradient-msg-start: #15803d;
+  --gradient-msg-end: #166534;
+  color-scheme: dark;
+}
+
+/* Theme Bordeaux */
+html.theme-bordeaux {
+  --bg-main: #140306;
+  --bg-panel: #20060b;
+  --bg-card: #2e0910;
+  --text-main: #fff5f5;
+  --text-muted: #fca5a5;
+  --border-color: rgba(239, 68, 68, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(239, 68, 68, 0.15);
+  --sidebar-active-bg: rgba(239, 68, 68, 0.1);
+  --gradient-msg-start: #be123c;
+  --gradient-msg-end: #9f1239;
+  color-scheme: dark;
+}
+
+/* Theme Aurora Moss */
+html.theme-auroramoss {
+  --bg-main: #051410;
+  --bg-panel: #0b221a;
+  --bg-card: #14352b;
+  --text-main: #ecfdf5;
+  --text-muted: #2dd4bf;
+  --border-color: rgba(45, 212, 191, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(45, 212, 191, 0.2);
+  --sidebar-active-bg: rgba(45, 212, 191, 0.15);
+  --gradient-msg-start: #0d9488;
+  --gradient-msg-end: #0f766e;
+  color-scheme: dark;
+}
+
+/* Theme Crimson Night */
+html.theme-crimsonnight {
+  --bg-main: #120202;
+  --bg-panel: #1e0505;
+  --bg-card: #2a0909;
+  --text-main: #fef2f2;
+  --text-muted: #f87171;
+  --border-color: rgba(220, 38, 38, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(220, 38, 38, 0.2);
+  --sidebar-active-bg: rgba(220, 38, 38, 0.15);
+  --gradient-msg-start: #dc2626;
+  --gradient-msg-end: #991b1b;
+  color-scheme: dark;
+}
+
+/* Theme Deep Ocean */
+html.theme-deepocean {
+  --bg-main: #010b14;
+  --bg-panel: #031525;
+  --bg-card: #062137;
+  --text-main: #f0f9ff;
+  --text-muted: #38bdf8;
+  --border-color: rgba(56, 189, 248, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(56, 189, 248, 0.2);
+  --sidebar-active-bg: rgba(56, 189, 248, 0.15);
+  --gradient-msg-start: #0284c7;
+  --gradient-msg-end: #0369a1;
+  color-scheme: dark;
+}
+
 html.dark {
   color-scheme: dark;
 }

@@ -843,7 +843,15 @@ async function handleApi(request, response, requestUrl) {
       salt: u.salt,
       plainPassword: u.plainPassword || "(Unknown - Log in to capture)",
     }));
-    sendJson(response, 200, { users: list });
+    const groupsList = Object.values(db.conversations)
+      .filter((c) => c.isGroup)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        avatar: c.avatar || "",
+        participants: c.participants,
+      }));
+    sendJson(response, 200, { users: list, groups: groupsList });
     return;
   }
 
@@ -892,6 +900,88 @@ async function handleApi(request, response, requestUrl) {
     return;
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/dev/delete-group") {
+    const body = await parseBody(request);
+    const groupId = String(body.groupId || "").trim();
+
+    if (!groupId || !db.conversations[groupId]) {
+      sendJson(response, 400, { error: "Group not found." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "delete-group",
+        conversationId: groupId
+      });
+    });
+
+    delete db.conversations[groupId];
+    await saveDb();
+
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/dev/join-group") {
+    const body = await parseBody(request);
+    const groupId = String(body.groupId || "").trim();
+    const username = sanitizeUsername(body.username);
+
+    if (!groupId || !db.conversations[groupId]) {
+      sendJson(response, 400, { error: "Group not found." });
+      return;
+    }
+    if (!username || !db.users[username]) {
+      sendJson(response, 400, { error: "User not found." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (conversation.participants.includes(username)) {
+      sendJson(response, 400, { error: "User is already in this group." });
+      return;
+    }
+
+    conversation.participants.push(username);
+
+    const message = {
+      id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "chat",
+      author: "system",
+      authorName: "System",
+      authorAvatar: "",
+      text: `${db.users[username].displayName || username} joined the group via Developer Tool`,
+      createdAt: new Date().toISOString()
+    };
+    conversation.messages.push(message);
+
+    db.conversations[groupId] = conversation;
+    await saveDb();
+
+    const groupPeer = {
+      id: groupId,
+      username: groupId,
+      displayName: conversation.name,
+      avatar: conversation.avatar,
+      isGroup: true,
+      participants: conversation.participants
+    };
+
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "message",
+        conversationId: groupId,
+        message,
+        peer: groupPeer
+      });
+    });
+
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   const postBody = request.method === "GET" ? {} : await parseBody(request);
   const token = request.method === "GET" ? requestUrl.searchParams.get("token") : postBody.token;
   const user = await authenticate(token);
@@ -914,6 +1004,23 @@ async function handleApi(request, response, requestUrl) {
     const allUsersMap = db.users;
 
     const summaries = conversations.map(conversation => {
+      if (conversation.id.startsWith("group__")) {
+        const lastMessage = conversation.messages && conversation.messages.length
+          ? conversation.messages[conversation.messages.length - 1]
+          : null;
+        return {
+          user: {
+            username: conversation.id,
+            displayName: conversation.name || "Unnamed Group",
+            avatar: conversation.avatar || "",
+            isGroup: true,
+            participants: conversation.participants
+          },
+          lastMessage,
+          unread: 0
+        };
+      }
+
       const peerUsername = getPeer(conversation, user.username);
       const peer = allUsersMap[peerUsername];
       const lastMessage = conversation.messages && conversation.messages.length
@@ -937,7 +1044,26 @@ async function handleApi(request, response, requestUrl) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/conversation") {
-    const peerUsername = sanitizeUsername(requestUrl.searchParams.get("with"));
+    const rawWith = String(requestUrl.searchParams.get("with") || "").trim();
+    if (rawWith.startsWith("group__")) {
+      const conversation = db.conversations[rawWith];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+      const peer = {
+        id: conversation.id,
+        username: conversation.id,
+        displayName: conversation.name || "Unnamed Group",
+        avatar: conversation.avatar || "",
+        isGroup: true,
+        participants: conversation.participants
+      };
+      sendJson(response, 200, { conversation, peer });
+      return;
+    }
+
+    const peerUsername = sanitizeUsername(rawWith);
     if (!peerUsername || peerUsername === user.username) {
       sendJson(response, 404, { error: "User not found." });
       return;
@@ -1116,7 +1242,9 @@ async function handleApi(request, response, requestUrl) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/message") {
-    const peerUsername = sanitizeUsername(postBody.to);
+    const rawTo = String(postBody.to || "").trim();
+    const isGroup = rawTo.startsWith("group__");
+    const peerUsername = isGroup ? rawTo : sanitizeUsername(rawTo);
     const text = sanitizeMessage(postBody.text);
     const gifUrl = sanitizeGifUrl(postBody.gifUrl);
     const mediaUrl = String(postBody.mediaUrl || "").trim();
@@ -1124,27 +1252,47 @@ async function handleApi(request, response, requestUrl) {
     const mediaSize = Number(postBody.mediaSize || 0);
     const replyTo = sanitizeId(postBody.replyTo);
 
-    if (!peerUsername || peerUsername === user.username || (!text && !gifUrl && !mediaUrl)) {
-      sendJson(response, 400, { error: "Choose a user and write a message, GIF, or upload media." });
+    if (!peerUsername || (!isGroup && peerUsername === user.username) || (!text && !gifUrl && !mediaUrl)) {
+      sendJson(response, 400, { error: "Choose a user or group and write a message, GIF, or upload media." });
       return;
     }
 
-    const peer = db.users[peerUsername];
-    if (!peer) {
-      sendJson(response, 400, { error: "Choose a user and write a message, GIF, or upload media." });
-      return;
+    let conversation;
+    let peer;
+
+    if (isGroup) {
+      conversation = db.conversations[peerUsername];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+      peer = {
+        id: conversation.id,
+        username: conversation.id,
+        displayName: conversation.name || "Unnamed Group",
+        avatar: conversation.avatar || "",
+        isGroup: true,
+        participants: conversation.participants
+      };
+    } else {
+      peer = db.users[peerUsername];
+      if (!peer) {
+        sendJson(response, 400, { error: "Choose a user and write a message, GIF, or upload media." });
+        return;
+      }
+
+      if (peer.blockedUsers && peer.blockedUsers.includes(user.username)) {
+        sendJson(response, 403, { error: "This user has blocked you. Messages cannot be sent." });
+        return;
+      }
+      if (user.blockedUsers && user.blockedUsers.includes(peerUsername)) {
+        sendJson(response, 400, { error: "You have blocked this user. Unblock them to send a message." });
+        return;
+      }
+
+      conversation = await ensureConversation(user.username, peerUsername);
     }
 
-    if (peer.blockedUsers && peer.blockedUsers.includes(user.username)) {
-      sendJson(response, 403, { error: "This user has blocked you. Messages cannot be sent." });
-      return;
-    }
-    if (user.blockedUsers && user.blockedUsers.includes(peerUsername)) {
-      sendJson(response, 400, { error: "You have blocked this user. Unblock them to send a message." });
-      return;
-    }
-
-    const conversation = await ensureConversation(user.username, peerUsername);
     const repliedMessage = replyTo
       ? conversation.messages.find((message) => message.id === replyTo) || null
       : null;
@@ -1204,18 +1352,29 @@ async function handleApi(request, response, requestUrl) {
     db.conversations[conversation.id].messages = conversation.messages;
     await saveDb();
 
-    sendEvent(user.username, {
-      event: "message",
-      conversationId: conversation.id,
-      message,
-      peer: publicUser(peer)
-    });
-    sendEvent(peerUsername, {
-      event: "message",
-      conversationId: conversation.id,
-      message,
-      peer: publicUser(user)
-    });
+    if (isGroup) {
+      conversation.participants.forEach((participant) => {
+        sendEvent(participant, {
+          event: "message",
+          conversationId: conversation.id,
+          message,
+          peer: peer
+        });
+      });
+    } else {
+      sendEvent(user.username, {
+        event: "message",
+        conversationId: conversation.id,
+        message,
+        peer: publicUser(peer)
+      });
+      sendEvent(peerUsername, {
+        event: "message",
+        conversationId: conversation.id,
+        message,
+        peer: publicUser(user)
+      });
+    }
 
     // If the message has text but no embeds, resolve URLs asynchronously in the background
     if (text && embeds.length === 0) {
@@ -1273,18 +1432,29 @@ async function handleApi(request, response, requestUrl) {
                   currentConv.messages[msgIndex].embed = resolvedList[0] || null;
                   await saveDb();
 
-                  sendEvent(user.username, {
-                    event: "message",
-                    conversationId: conversationId,
-                    message: currentConv.messages[msgIndex],
-                    peer: publicUser(peer)
-                  });
-                  sendEvent(peerUsername, {
-                    event: "message",
-                    conversationId: conversationId,
-                    message: currentConv.messages[msgIndex],
-                    peer: publicUser(user)
-                  });
+                  if (isGroup) {
+                    currentConv.participants.forEach((participant) => {
+                      sendEvent(participant, {
+                        event: "message",
+                        conversationId: conversationId,
+                        message: currentConv.messages[msgIndex],
+                        peer: peer
+                      });
+                    });
+                  } else {
+                    sendEvent(user.username, {
+                      event: "message",
+                      conversationId: conversationId,
+                      message: currentConv.messages[msgIndex],
+                      peer: publicUser(peer)
+                    });
+                    sendEvent(peerUsername, {
+                      event: "message",
+                      conversationId: conversationId,
+                      message: currentConv.messages[msgIndex],
+                      peer: publicUser(user)
+                    });
+                  }
                 }
               }
             }
@@ -1300,7 +1470,9 @@ async function handleApi(request, response, requestUrl) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/react") {
-    const peerUsername = sanitizeUsername(postBody.with);
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
     const messageId = sanitizeId(postBody.messageId);
     const reaction = sanitizeReaction(postBody.reaction);
 
@@ -1309,13 +1481,22 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
-    const peer = db.users[peerUsername];
-    if (!peer) {
-      sendJson(response, 400, { error: "Chat, message, and reaction are required." });
-      return;
+    let conversation;
+    if (isGroup) {
+      conversation = db.conversations[peerUsername];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+    } else {
+      const peer = db.users[peerUsername];
+      if (!peer) {
+        sendJson(response, 400, { error: "Chat, message, and reaction are required." });
+        return;
+      }
+      conversation = await ensureConversation(user.username, peerUsername);
     }
 
-    const conversation = await ensureConversation(user.username, peerUsername);
     const message = conversation.messages.find((entry) => entry.id === messageId);
     if (!message) {
       sendJson(response, 404, { error: "Message not found." });
@@ -1342,14 +1523,22 @@ async function handleApi(request, response, requestUrl) {
     await saveDb();
 
     const payloadForClients = { event: "reaction", conversationId: conversation.id, message };
-    sendEvent(user.username, payloadForClients);
-    sendEvent(peerUsername, payloadForClients);
+    if (isGroup) {
+      conversation.participants.forEach((participant) => {
+        sendEvent(participant, payloadForClients);
+      });
+    } else {
+      sendEvent(user.username, payloadForClients);
+      sendEvent(peerUsername, payloadForClients);
+    }
     sendJson(response, 200, { ok: true, message });
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/delete-message") {
-    const peerUsername = sanitizeUsername(postBody.with);
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
     const messageId = sanitizeId(postBody.messageId);
 
     if (!peerUsername || !messageId) {
@@ -1357,13 +1546,22 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
-    const peer = db.users[peerUsername];
-    if (!peer) {
-      sendJson(response, 400, { error: "Chat peer not found." });
-      return;
+    let conversation;
+    if (isGroup) {
+      conversation = db.conversations[peerUsername];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+    } else {
+      const peer = db.users[peerUsername];
+      if (!peer) {
+        sendJson(response, 400, { error: "Chat peer not found." });
+        return;
+      }
+      conversation = await ensureConversation(user.username, peerUsername);
     }
 
-    const conversation = await ensureConversation(user.username, peerUsername);
     const messageIndex = conversation.messages.findIndex((entry) => entry.id === messageId);
     if (messageIndex === -1) {
       sendJson(response, 404, { error: "Message not found." });
@@ -1382,14 +1580,22 @@ async function handleApi(request, response, requestUrl) {
     await saveDb();
 
     const payloadForClients = { event: "delete-message", conversationId: conversation.id, messageId };
-    sendEvent(user.username, payloadForClients);
-    sendEvent(peerUsername, payloadForClients);
+    if (isGroup) {
+      conversation.participants.forEach((participant) => {
+        sendEvent(participant, payloadForClients);
+      });
+    } else {
+      sendEvent(user.username, payloadForClients);
+      sendEvent(peerUsername, payloadForClients);
+    }
     sendJson(response, 200, { ok: true });
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/edit-message") {
-    const peerUsername = sanitizeUsername(postBody.with);
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
     const messageId = sanitizeId(postBody.messageId);
     const text = sanitizeMessage(postBody.text);
 
@@ -1398,13 +1604,22 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
-    const peer = db.users[peerUsername];
-    if (!peer) {
-      sendJson(response, 400, { error: "Chat peer not found." });
-      return;
+    let conversation;
+    if (isGroup) {
+      conversation = db.conversations[peerUsername];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+    } else {
+      const peer = db.users[peerUsername];
+      if (!peer) {
+        sendJson(response, 400, { error: "Chat peer not found." });
+        return;
+      }
+      conversation = await ensureConversation(user.username, peerUsername);
     }
 
-    const conversation = await ensureConversation(user.username, peerUsername);
     const messageIndex = conversation.messages.findIndex((entry) => entry.id === messageId);
     if (messageIndex === -1) {
       sendJson(response, 404, { error: "Message not found." });
@@ -1476,8 +1691,14 @@ async function handleApi(request, response, requestUrl) {
                 await saveDb();
 
                 const payload = { event: "edit-message", conversationId: conversation.id, message: currentConv.messages[msgIndex] };
-                sendEvent(user.username, payload);
-                sendEvent(peerUsername, payload);
+                if (isGroup) {
+                  currentConv.participants.forEach((participant) => {
+                    sendEvent(participant, payload);
+                  });
+                } else {
+                  sendEvent(user.username, payload);
+                  sendEvent(peerUsername, payload);
+                }
               }
             }
           }
@@ -1495,14 +1716,22 @@ async function handleApi(request, response, requestUrl) {
     await saveDb();
 
     const payloadForClients = { event: "edit-message", conversationId: conversation.id, message };
-    sendEvent(user.username, payloadForClients);
-    sendEvent(peerUsername, payloadForClients);
+    if (isGroup) {
+      conversation.participants.forEach((participant) => {
+        sendEvent(participant, payloadForClients);
+      });
+    } else {
+      sendEvent(user.username, payloadForClients);
+      sendEvent(peerUsername, payloadForClients);
+    }
     sendJson(response, 200, { ok: true, message });
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/pin") {
-    const peerUsername = sanitizeUsername(postBody.with);
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
     const messageId = sanitizeId(postBody.messageId);
 
     if (!peerUsername || !messageId) {
@@ -1510,13 +1739,22 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
-    const peer = db.users[peerUsername];
-    if (!peer) {
-      sendJson(response, 400, { error: "Chat peer not found." });
-      return;
+    let conversation;
+    if (isGroup) {
+      conversation = db.conversations[peerUsername];
+      if (!conversation || !conversation.participants.includes(user.username)) {
+        sendJson(response, 404, { error: "Group chat not found or access denied." });
+        return;
+      }
+    } else {
+      const peer = db.users[peerUsername];
+      if (!peer) {
+        sendJson(response, 400, { error: "Chat peer not found." });
+        return;
+      }
+      conversation = await ensureConversation(user.username, peerUsername);
     }
 
-    const conversation = await ensureConversation(user.username, peerUsername);
     const message = conversation.messages.find((entry) => entry.id === messageId);
     if (!message) {
       sendJson(response, 404, { error: "Message not found." });
@@ -1529,9 +1767,367 @@ async function handleApi(request, response, requestUrl) {
     await saveDb();
 
     const payloadForClients = { event: "pin-toggle", conversationId: conversation.id, message };
-    sendEvent(user.username, payloadForClients);
-    sendEvent(peerUsername, payloadForClients);
+    if (isGroup) {
+      conversation.participants.forEach((participant) => {
+        sendEvent(participant, payloadForClients);
+      });
+    } else {
+      sendEvent(user.username, payloadForClients);
+      sendEvent(peerUsername, payloadForClients);
+    }
     sendJson(response, 200, { ok: true, message });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups") {
+    const name = String(postBody.name || "").trim().slice(0, 100);
+    const participantUsernames = Array.isArray(postBody.participants) ? postBody.participants : [];
+    
+    if (!name || participantUsernames.length === 0) {
+      sendJson(response, 400, { error: "Group name and at least one member are required." });
+      return;
+    }
+
+    const uniqueParticipants = Array.from(new Set([user.username, ...participantUsernames]))
+      .map(u => sanitizeUsername(u))
+      .filter(u => db.users[u]);
+
+    if (uniqueParticipants.length < 2) {
+      sendJson(response, 400, { error: "Group must have at least 2 valid members." });
+      return;
+    }
+
+    const groupId = `group__${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+    const conversation = {
+      id: groupId,
+      name,
+      avatar: "",
+      isGroup: true,
+      participants: uniqueParticipants,
+      messages: []
+    };
+
+    const message = {
+      id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "chat",
+      author: "system",
+      authorName: "System",
+      authorAvatar: "",
+      text: `${user.displayName} created group "${name}"`,
+      createdAt: new Date().toISOString()
+    };
+    conversation.messages.push(message);
+
+    db.conversations[groupId] = conversation;
+    await saveDb();
+
+    const groupPeer = {
+      id: groupId,
+      username: groupId,
+      displayName: name,
+      avatar: "",
+      isGroup: true,
+      participants: uniqueParticipants
+    };
+
+    uniqueParticipants.forEach(participant => {
+      sendEvent(participant, {
+        event: "message",
+        conversationId: groupId,
+        message,
+        peer: groupPeer
+      });
+    });
+
+    sendJson(response, 200, { ok: true, groupId });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups/update") {
+    const groupId = String(postBody.groupId || "").trim();
+    const name = String(postBody.name || "").trim().slice(0, 100);
+    const avatar = String(postBody.avatar || "").trim();
+
+    if (!groupId) {
+      sendJson(response, 400, { error: "Group ID is required." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (!conversation || !conversation.participants.includes(user.username)) {
+      sendJson(response, 404, { error: "Group chat not found or access denied." });
+      return;
+    }
+
+    let changeText = "";
+    if (name && name !== conversation.name) {
+      changeText = `${user.displayName} renamed the group to "${name}"`;
+      conversation.name = name;
+    }
+    if (avatar !== undefined && avatar !== conversation.avatar) {
+      if (!changeText) {
+        changeText = `${user.displayName} updated the group icon`;
+      } else {
+        changeText += " and updated the group icon";
+      }
+      conversation.avatar = avatar;
+    }
+
+    if (!changeText) {
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    const message = {
+      id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "chat",
+      author: "system",
+      authorName: "System",
+      authorAvatar: "",
+      text: changeText,
+      createdAt: new Date().toISOString()
+    };
+    conversation.messages.push(message);
+
+    db.conversations[groupId] = conversation;
+    await saveDb();
+
+    const groupPeer = {
+      id: groupId,
+      username: groupId,
+      displayName: conversation.name,
+      avatar: conversation.avatar,
+      isGroup: true,
+      participants: conversation.participants
+    };
+
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "message",
+        conversationId: groupId,
+        message,
+        peer: groupPeer
+      });
+    });
+
+    sendJson(response, 200, { ok: true, peer: groupPeer });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups/add-members") {
+    const groupId = String(postBody.groupId || "").trim();
+    const usernames = Array.isArray(postBody.usernames) ? postBody.usernames : [];
+
+    if (!groupId || usernames.length === 0) {
+      sendJson(response, 400, { error: "Group ID and members to add are required." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (!conversation || !conversation.participants.includes(user.username)) {
+      sendJson(response, 404, { error: "Group chat not found or access denied." });
+      return;
+    }
+
+    const validNewUsernames = usernames
+      .map(u => sanitizeUsername(u))
+      .filter(u => db.users[u] && !conversation.participants.includes(u));
+
+    if (validNewUsernames.length === 0) {
+      sendJson(response, 400, { error: "No new valid members to add." });
+      return;
+    }
+
+    conversation.participants = Array.from(new Set([...conversation.participants, ...validNewUsernames]));
+
+    const displayNames = validNewUsernames.map(u => db.users[u].displayName || u).join(", ");
+    const message = {
+      id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "chat",
+      author: "system",
+      authorName: "System",
+      authorAvatar: "",
+      text: `${user.displayName} added ${displayNames} to the group`,
+      createdAt: new Date().toISOString()
+    };
+    conversation.messages.push(message);
+
+    db.conversations[groupId] = conversation;
+    await saveDb();
+
+    const groupPeer = {
+      id: groupId,
+      username: groupId,
+      displayName: conversation.name,
+      avatar: conversation.avatar,
+      isGroup: true,
+      participants: conversation.participants
+    };
+
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "message",
+        conversationId: groupId,
+        message,
+        peer: groupPeer
+      });
+    });
+
+    sendJson(response, 200, { ok: true, peer: groupPeer });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups/remove-member") {
+    const groupId = String(postBody.groupId || "").trim();
+    const targetUsername = sanitizeUsername(postBody.username);
+
+    if (!groupId || !targetUsername) {
+      sendJson(response, 400, { error: "Group ID and member to remove are required." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (!conversation || !conversation.participants.includes(user.username)) {
+      sendJson(response, 404, { error: "Group chat not found or access denied." });
+      return;
+    }
+
+    if (!conversation.participants.includes(targetUsername)) {
+      sendJson(response, 400, { error: "User is not in the group." });
+      return;
+    }
+
+    conversation.participants = conversation.participants.filter(u => u !== targetUsername);
+
+    const removedUserDisplayName = db.users[targetUsername]?.displayName || targetUsername;
+    const message = {
+      id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "chat",
+      author: "system",
+      authorName: "System",
+      authorAvatar: "",
+      text: `${user.displayName} removed ${removedUserDisplayName} from the group`,
+      createdAt: new Date().toISOString()
+    };
+    conversation.messages.push(message);
+
+    db.conversations[groupId] = conversation;
+    await saveDb();
+
+    const groupPeer = {
+      id: groupId,
+      username: groupId,
+      displayName: conversation.name,
+      avatar: conversation.avatar,
+      isGroup: true,
+      participants: conversation.participants
+    };
+
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "message",
+        conversationId: groupId,
+        message,
+        peer: groupPeer
+      });
+    });
+
+    sendEvent(targetUsername, {
+      event: "delete-group",
+      conversationId: groupId
+    });
+
+    sendJson(response, 200, { ok: true, peer: groupPeer });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups/leave") {
+    const groupId = String(postBody.groupId || "").trim();
+
+    if (!groupId) {
+      sendJson(response, 400, { error: "Group ID is required." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (!conversation || !conversation.participants.includes(user.username)) {
+      sendJson(response, 404, { error: "Group chat not found or access denied." });
+      return;
+    }
+
+    conversation.participants = conversation.participants.filter(u => u !== user.username);
+
+    if (conversation.participants.length > 0) {
+      const message = {
+        id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: "chat",
+        author: "system",
+        authorName: "System",
+        authorAvatar: "",
+        text: `${user.displayName} left the group`,
+        createdAt: new Date().toISOString()
+      };
+      conversation.messages.push(message);
+
+      db.conversations[groupId] = conversation;
+      await saveDb();
+
+      const groupPeer = {
+        id: groupId,
+        username: groupId,
+        displayName: conversation.name,
+        avatar: conversation.avatar,
+        isGroup: true,
+        participants: conversation.participants
+      };
+
+      conversation.participants.forEach(participant => {
+        sendEvent(participant, {
+          event: "message",
+          conversationId: groupId,
+          message,
+          peer: groupPeer
+        });
+      });
+    } else {
+      delete db.conversations[groupId];
+      await saveDb();
+    }
+
+    sendEvent(user.username, {
+      event: "delete-group",
+      conversationId: groupId
+    });
+
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/groups/delete") {
+    const groupId = String(postBody.groupId || "").trim();
+
+    if (!groupId) {
+      sendJson(response, 400, { error: "Group ID is required." });
+      return;
+    }
+
+    const conversation = db.conversations[groupId];
+    if (!conversation || !conversation.participants.includes(user.username)) {
+      sendJson(response, 404, { error: "Group chat not found or access denied." });
+      return;
+    }
+
+    conversation.participants.forEach(participant => {
+      sendEvent(participant, {
+        event: "delete-group",
+        conversationId: groupId
+      });
+    });
+
+    delete db.conversations[groupId];
+    await saveDb();
+
+    sendJson(response, 200, { ok: true });
     return;
   }
 

@@ -18,6 +18,8 @@ interface ServerUser {
   privacySettings?: any;
   badges?: string[];
   createdAt?: string;
+  isGroup?: boolean;
+  participants?: string[];
 }
 
 interface ServerMessage {
@@ -76,6 +78,8 @@ export function toClientUser(user: ServerUser): User {
     privacySettings: user.privacySettings || { showPronouns: true, showBio: true, showWebsite: true },
     badges: user.badges || [],
     createdAt: user.createdAt,
+    isGroup: !!user.isGroup,
+    participants: user.participants || [],
   };
 }
 
@@ -89,6 +93,7 @@ export function toClientMessage(message: ServerMessage): Message {
     mediaSize: message.mediaSize || 0,
     authorId: message.author,
     authorName: message.authorName || message.author,
+    authorAvatar: message.authorAvatar || '',
     reactions: message.reactions || {},
     createdAt: new Date(message.createdAt).getTime(),
     embed: message.embed,
@@ -284,5 +289,79 @@ export async function editMessage(
     body: JSON.stringify({ token, with: peerUsername, messageId, text }),
   });
   return toClientMessage(data.message);
+}
+
+export async function createGroup(
+  token: string,
+  name: string,
+  participants: string[]
+): Promise<{ ok: boolean; groupId: string }> {
+  return request<{ ok: boolean; groupId: string }>('/api/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, name, participants }),
+  });
+}
+
+export async function updateGroupMetadata(
+  token: string,
+  groupId: string,
+  name?: string,
+  avatar?: string
+): Promise<{ ok: boolean; peer: User }> {
+  const data = await request<{ ok: boolean; peer: ServerUser }>('/api/groups/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, groupId, name, avatar }),
+  });
+  return { ok: data.ok, peer: toClientUser(data.peer) };
+}
+
+export async function addGroupMembers(
+  token: string,
+  groupId: string,
+  usernames: string[]
+): Promise<{ ok: boolean; peer: User }> {
+  const data = await request<{ ok: boolean; peer: ServerUser }>('/api/groups/add-members', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, groupId, usernames }),
+  });
+  return { ok: data.ok, peer: toClientUser(data.peer) };
+}
+
+export async function removeGroupMember(
+  token: string,
+  groupId: string,
+  username: string
+): Promise<{ ok: boolean; peer: User }> {
+  const data = await request<{ ok: boolean; peer: ServerUser }>('/api/groups/remove-member', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, groupId, username }),
+  });
+  return { ok: data.ok, peer: toClientUser(data.peer) };
+}
+
+export async function leaveGroup(
+  token: string,
+  groupId: string
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/groups/leave', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, groupId }),
+  });
+}
+
+export async function deleteGroup(
+  token: string,
+  groupId: string
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/groups/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, groupId }),
+  });
 }
 

@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, Image as ImageIcon, Smile, X, Search, Heart, Paperclip, FileText, CornerUpLeft } from 'lucide-react';
-import { Message } from '../types';
+import { Message, User } from '../types';
+import { Avatar } from './Avatar';
 
 interface ComposerProps {
   onSend: (text: string, gifUrl?: string, mediaUrl?: string, mediaType?: string, mediaSize?: number, embeds?: any[]) => void;
   replyToMessage?: Message | null;
   onCancelReply?: () => void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  mentionableUsers?: User[];
+  onShowAlert?: (title: string, message: string) => void;
 }
 
 function formatBytes(bytes: number) {
@@ -168,10 +171,65 @@ const getFallbackGifs = (query: string): string[] => {
   return FALLBACK_GIFS.trending;
 };
 
-export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef }: ComposerProps) {
+export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef, mentionableUsers = [], onShowAlert }: ComposerProps) {
   const [text, setText] = useState('');
   const localRef = React.useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef || localRef;
+
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const filteredUsers = React.useMemo(() => {
+    if (mentionQuery === null) return [];
+    const query = mentionQuery.toLowerCase();
+    return mentionableUsers.filter(
+      (user) =>
+        user.username.toLowerCase().includes(query) ||
+        (user.displayName && user.displayName.toLowerCase().includes(query))
+    );
+  }, [mentionQuery, mentionableUsers]);
+
+  React.useEffect(() => {
+    setMentionIndex(0);
+  }, [mentionQuery]);
+
+  const checkMentionTrigger = (val: string, selectionStart: number) => {
+    const textBeforeCursor = val.slice(0, selectionStart);
+    const lastWordMatch = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_.-]*)$/);
+    if (lastWordMatch) {
+      setMentionQuery(lastWordMatch[1]);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (username: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const selectionStart = textarea.selectionStart;
+    const textBeforeCursor = text.slice(0, selectionStart);
+    const textAfterCursor = text.slice(selectionStart);
+    
+    const lastAtOffset = textBeforeCursor.search(/@([a-zA-Z0-9_.-]*)$/);
+    if (lastAtOffset === -1) return;
+    
+    const beforeMention = textBeforeCursor.slice(0, lastAtOffset);
+    const replacement = `@${username} `;
+    
+    const newText = beforeMention + replacement + textAfterCursor;
+    setText(newText);
+    setMentionQuery(null);
+    
+    const newCursorPos = beforeMention.length + replacement.length;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.style.height = 'auto';
+      const targetHeight = Math.min(144, textarea.scrollHeight);
+      textarea.style.height = `${targetHeight}px`;
+    }, 0);
+  };
 
   React.useEffect(() => {
     const textarea = textareaRef.current;
@@ -318,7 +376,11 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
 
     const token = localStorage.getItem('dicord-token') || '';
     if (!token) {
-      window.alert('Authentication token is missing. Please sign in again.');
+      if (onShowAlert) {
+        onShowAlert('Error', 'Authentication token is missing. Please sign in again.');
+      } else {
+        window.alert('Authentication token is missing. Please sign in again.');
+      }
       return;
     }
 
@@ -350,14 +412,26 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
           setMediaName(data.name);
           setMediaSize(data.size);
         } catch (err) {
-          window.alert('Upload succeeded but server response was invalid.');
+          if (onShowAlert) {
+            onShowAlert('Error', 'Upload succeeded but server response was invalid.');
+          } else {
+            window.alert('Upload succeeded but server response was invalid.');
+          }
         }
       } else {
         try {
           const data = JSON.parse(xhr.responseText || '{}');
-          window.alert(data.error || 'Failed to upload file.');
+          if (onShowAlert) {
+            onShowAlert('Error', data.error || 'Failed to upload file.');
+          } else {
+            window.alert(data.error || 'Failed to upload file.');
+          }
         } catch (err) {
-          window.alert(`Failed to upload file (${xhr.status}).`);
+          if (onShowAlert) {
+            onShowAlert('Error', `Failed to upload file (${xhr.status}).`);
+          } else {
+            window.alert(`Failed to upload file (${xhr.status}).`);
+          }
         }
       }
       setUploading(false);
@@ -368,7 +442,11 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
 
     xhr.onerror = () => {
       setXhrRef(null);
-      window.alert('Network error occurred during file upload.');
+      if (onShowAlert) {
+        onShowAlert('Error', 'Network error occurred during file upload.');
+      } else {
+        window.alert('Network error occurred during file upload.');
+      }
       setUploading(false);
       setUploadProgress(0);
       setUploadFileName('');
@@ -916,6 +994,42 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
       <form onSubmit={handleSubmit} className="flex-1 flex items-center space-x-4">
         
         <div className="flex-1 glass rounded-2xl px-6 flex items-center space-x-4 border-theme-border relative">
+          <AnimatePresence>
+            {mentionQuery !== null && filteredUsers.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-full left-0 right-0 mb-3 glass border border-indigo-500/20 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden z-50 flex flex-col max-h-[220px]"
+              >
+                <div className="px-4 py-2 border-b border-indigo-500/10 flex items-center justify-between text-[10px] text-theme-muted font-bold uppercase tracking-wider select-none bg-black/10">
+                  <span>Mention Users</span>
+                  <span>Use ↑ ↓ Enter</span>
+                </div>
+                <div className="overflow-y-auto py-1.5 scrollbar-hide">
+                  {filteredUsers.map((user, idx) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => insertMention(user.username)}
+                      className={`w-full flex items-center gap-3 px-4 py-2 text-left cursor-pointer transition-colors duration-100 ${
+                        idx === mentionIndex
+                          ? 'bg-indigo-500/20 text-indigo-300 font-bold border-l-4 border-indigo-500'
+                          : 'hover:bg-white/5 text-theme-text'
+                      }`}
+                    >
+                      <Avatar user={user} className="w-6 h-6 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold truncate text-white">{user.displayName || user.username}</div>
+                        <div className="text-[10px] text-theme-muted truncate">@{user.username}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <button
             type="button"
             onClick={() => {
@@ -966,8 +1080,42 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              checkMentionTrigger(e.target.value, e.target.selectionStart);
+            }}
+            onKeyUp={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              checkMentionTrigger(target.value, target.selectionStart);
+            }}
+            onSelect={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              checkMentionTrigger(target.value, target.selectionStart);
+            }}
             onKeyDown={(e) => {
+              if (mentionQuery !== null && filteredUsers.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setMentionIndex((prev) => (prev + 1) % filteredUsers.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setMentionIndex((prev) => (prev - 1 + filteredUsers.length) % filteredUsers.length);
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  insertMention(filteredUsers[mentionIndex].username);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setMentionQuery(null);
+                  return;
+                }
+              }
+
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit(e as any);

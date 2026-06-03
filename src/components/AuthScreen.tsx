@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
-import { MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MessageSquare, AlertTriangle } from 'lucide-react';
 
 interface AuthScreenProps {
   onLogin: (
@@ -9,9 +9,10 @@ interface AuthScreenProps {
     displayName: string | undefined,
     isRegister: boolean
   ) => Promise<void>;
+  theme?: string;
 }
 
-export function AuthScreen({ onLogin }: AuthScreenProps) {
+export function AuthScreen({ onLogin, theme = 'dark' }: AuthScreenProps) {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -21,9 +22,37 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
   const [showDevAccounts, setShowDevAccounts] = useState(false);
   const [devAccounts, setDevAccounts] = useState<any[]>([]);
+  const [devGroups, setDevGroups] = useState<any[]>([]);
   const [devLoading, setDevLoading] = useState(false);
+  const [devTab, setDevTab] = useState<'users' | 'groups'>('users');
 
+  const [devDialog, setDevDialog] = useState<{
+    isOpen: boolean;
+    type: 'alert' | 'confirm';
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: 'alert',
+    message: '',
+  });
 
+  const showDevAlert = (message: string) => {
+    setDevDialog({
+      isOpen: true,
+      type: 'alert',
+      message,
+    });
+  };
+
+  const showDevConfirm = (message: string, onConfirm: () => void) => {
+    setDevDialog({
+      isOpen: true,
+      type: 'confirm',
+      message,
+      onConfirm,
+    });
+  };
 
   const fetchDevAccounts = async () => {
     setDevLoading(true);
@@ -32,6 +61,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
       if (res.ok) {
         const data = await res.json();
         setDevAccounts(data.users || []);
+        setDevGroups(data.groups || []);
       } else {
         console.error('Failed to fetch dev accounts:', res.statusText);
       }
@@ -43,25 +73,64 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
   };
 
   const handleDeleteUser = async (usernameToDelete: string) => {
-    if (!window.confirm(`Are you sure you want to delete user @${usernameToDelete}?`)) {
-      return;
-    }
-    
+    showDevConfirm(`Are you sure you want to delete user @${usernameToDelete}?`, async () => {
+      try {
+        const res = await fetch('/api/dev/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameToDelete })
+        });
+        if (res.ok) {
+          fetchDevAccounts();
+        } else {
+          const errData = await res.json();
+          showDevAlert(`Failed to delete user: ${errData.error || res.statusText}`);
+        }
+      } catch (err) {
+        console.error('Error deleting dev user:', err);
+        showDevAlert('Error deleting user.');
+      }
+    });
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    showDevConfirm(`Are you sure you want to delete group "${groupId}"? This cannot be undone.`, async () => {
+      try {
+        const res = await fetch('/api/dev/delete-group', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId })
+        });
+        if (res.ok) {
+          fetchDevAccounts();
+        } else {
+          const errData = await res.json();
+          showDevAlert(`Failed to delete group: ${errData.error || res.statusText}`);
+        }
+      } catch (err) {
+        console.error('Error deleting dev group:', err);
+        showDevAlert('Error deleting group.');
+      }
+    });
+  };
+
+  const handleJoinGroup = async (groupId: string, username: string) => {
     try {
-      const res = await fetch('/api/dev/delete-user', {
+      const res = await fetch('/api/dev/join-group', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usernameToDelete })
+        body: JSON.stringify({ groupId, username })
       });
       if (res.ok) {
+        showDevAlert(`User @${username} has joined the group successfully.`);
         fetchDevAccounts();
       } else {
         const errData = await res.json();
-        alert(`Failed to delete user: ${errData.error || res.statusText}`);
+        showDevAlert(`Failed to join group: ${errData.error || res.statusText}`);
       }
     } catch (err) {
-      console.error('Error deleting dev user:', err);
-      alert('Error deleting user.');
+      console.error('Error joining group:', err);
+      showDevAlert('Error joining group.');
     }
   };
 
@@ -169,9 +238,11 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
           className="relative w-full max-w-md glass rounded-[32px] p-8 sm:p-10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-10"
         >
           <div className="flex justify-center mb-8">
-            <div className="w-16 h-16 rounded-2xl gradient-msg flex items-center justify-center text-white">
-              <MessageSquare size={32} />
-            </div>
+            <img 
+              src={theme === 'light' ? '/logo_lightmode.ico' : '/logo_darkmode.ico'} 
+              alt="Dicord Logo" 
+              className="w-32 h-32 object-contain pointer-events-none select-none animate-fade-in" 
+            />
           </div>
 
           <div className="text-center mb-8">
@@ -306,12 +377,12 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
       </div>
 
       {showDevAccounts && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="relative w-full max-w-2xl bg-slate-900/95 border border-slate-700/50 rounded-[24px] p-6 max-h-[85vh] overflow-y-auto shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in font-sans">
+          <div className="relative w-full max-w-2xl bg-slate-900/95 border border-slate-700/50 rounded-[24px] p-6 max-h-[85vh] shadow-2xl flex flex-col">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-slate-100">Developer Diagnostic Tool</h2>
-                <p className="text-xs text-indigo-400 mt-1">Staged account list retrieved from server</p>
+                <p className="text-xs text-indigo-400 mt-1">Staged account and group chat database list</p>
               </div>
               <button 
                 type="button"
@@ -322,71 +393,210 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
               </button>
             </div>
 
-            {devLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-slate-400">Fetching accounts...</p>
-              </div>
-            ) : devAccounts.length === 0 ? (
-              <div className="text-center py-12 text-slate-400">
-                No accounts found in the database yet.
-              </div>
-            ) : (
-              <div className="space-y-4 overflow-y-auto pr-1">
-                <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl leading-relaxed">
-                  Note: Plaintext passwords are now captured and displayed during registration and login for development diagnostic purposes.
-                </p>
-                <div className="grid gap-3">
-                  {devAccounts.map((account, idx) => (
-                    <div 
-                      key={idx} 
-                      className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-2 hover:border-indigo-500/30 transition-all"
-                    >
-                      <div className="flex justify-between items-start flex-wrap gap-2">
-                        <div>
-                          <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Display Name</span>
-                          <h3 className="text-base font-bold text-white">{account.displayName || '(No Display Name)'}</h3>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Username</span>
-                            <p className="text-sm font-mono text-slate-300">@{account.username}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteUser(account.username)}
-                            className="bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex items-center justify-between mt-2">
-                        <div>
-                          <span className="block text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-0.5">Plaintext Password</span>
-                          <code className="text-sm font-mono font-bold text-amber-300 select-all">{account.plainPassword}</code>
-                        </div>
-                      </div>
+            {/* Dev Tab Header */}
+            <div className="flex border-b border-slate-800 mb-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDevTab('users')}
+                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                  devTab === 'users' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Registered Users ({devAccounts.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDevTab('groups')}
+                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                  devTab === 'groups' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Active Groups ({devGroups.length})
+              </button>
+            </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-900">
-                        <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40">
-                          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password Hash</span>
-                          <code className="text-xs font-mono text-emerald-400 break-all select-all">{account.passwordHash}</code>
+            <div className="flex-1 overflow-y-auto pr-1 scrollbar-hide">
+              {devLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-slate-400">Fetching database tables...</p>
+                </div>
+              ) : devTab === 'users' ? (
+                devAccounts.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    No accounts found in the database.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl leading-relaxed">
+                      Note: Plaintext passwords are now captured and displayed during registration and login for development diagnostic purposes.
+                    </p>
+                    <div className="grid gap-3">
+                      {devAccounts.map((account, idx) => (
+                        <div 
+                          key={idx} 
+                          className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-2 hover:border-indigo-500/30 transition-all"
+                        >
+                          <div className="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                              <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Display Name</span>
+                              <h3 className="text-base font-bold text-white">{account.displayName || '(No Display Name)'}</h3>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Username</span>
+                                <p className="text-sm font-mono text-slate-300">@{account.username}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUser(account.username)}
+                                className="bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex items-center justify-between mt-2">
+                            <div>
+                              <span className="block text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-0.5">Plaintext Password</span>
+                              <code className="text-sm font-mono font-bold text-amber-300 select-all">{account.plainPassword}</code>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-900">
+                            <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40">
+                              <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Password Hash</span>
+                              <code className="text-xs font-mono text-emerald-400 break-all select-all">{account.passwordHash}</code>
+                            </div>
+                            <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40">
+                              <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Salt</span>
+                              <code className="text-xs font-mono text-purple-400 break-all select-all">{account.salt}</code>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40">
-                          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Salt</span>
-                          <code className="text-xs font-mono text-purple-400 break-all select-all">{account.salt}</code>
+                      ))}
+                    </div>
+                  </div>
+                )
+              ) : (
+                devGroups.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    No active group chats found in the database.
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {devGroups.map((group, idx) => (
+                      <div 
+                        key={idx} 
+                        className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col gap-2 hover:border-indigo-500/30 transition-all"
+                      >
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                          <div>
+                            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Group Name</span>
+                            <h3 className="text-base font-bold text-white">{group.name || '(Unnamed Group)'}</h3>
+                            <span className="text-[10px] text-slate-500 font-mono block mt-1">ID: {group.id}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right mr-1">
+                              <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Participants</span>
+                              <p className="text-sm font-mono text-slate-300">{group.participants?.length || 0} members</p>
+                            </div>
+
+                            <select
+                              id={`join-select-${group.id}`}
+                              className="bg-slate-900 border border-slate-800 text-xs text-slate-300 rounded-xl px-2 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                              defaultValue=""
+                              onChange={async (e) => {
+                                const userToJoin = e.target.value;
+                                if (!userToJoin) return;
+                                e.target.value = ""; // Reset dropdown
+                                await handleJoinGroup(group.id, userToJoin);
+                              }}
+                            >
+                              <option value="" disabled>Join as...</option>
+                              {devAccounts
+                                .filter(acc => !group.participants?.includes(acc.username))
+                                .map(acc => (
+                                  <option key={acc.username} value={acc.username}>@{acc.username}</option>
+                                ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGroup(group.id)}
+                              className="bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/40 mt-2">
+                          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Participants List</span>
+                          <code className="text-xs font-mono text-slate-400 break-all select-all">
+                            {group.participants?.join(', ')}
+                          </code>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      {/* Dev In-Page Custom Modal (Alert & Confirm) */}
+      <AnimatePresence>
+        {devDialog.isOpen && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm font-sans select-none animate-fade-in text-slate-100">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left"
+            >
+              <div className="flex items-center gap-3 text-indigo-400 font-bold text-lg">
+                <AlertTriangle className={devDialog.type === 'confirm' ? 'text-amber-500' : 'text-indigo-400'} size={20} />
+                <span>{devDialog.type === 'confirm' ? 'Confirmation Required' : 'Alert'}</span>
+              </div>
+              
+              <p className="text-sm text-slate-350 leading-relaxed select-text">
+                {devDialog.message}
+              </p>
+              
+              <div className="flex justify-end gap-3 mt-2">
+                {devDialog.type === 'confirm' && (
+                  <button
+                    type="button"
+                    onClick={() => setDevDialog(prev => ({ ...prev, isOpen: false }))}
+                    className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 transition-colors cursor-pointer text-slate-200"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setDevDialog(prev => ({ ...prev, isOpen: false }));
+                    if (devDialog.onConfirm) {
+                      await devDialog.onConfirm();
+                    }
+                  }}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl text-white transition-colors cursor-pointer shadow-md uppercase tracking-wider ${
+                    devDialog.type === 'confirm' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/10' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10'
+                  }`}
+                >
+                  {devDialog.type === 'confirm' ? 'Confirm' : 'OK'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

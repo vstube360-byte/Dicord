@@ -22,7 +22,11 @@ interface ChatAreaProps {
   onBack?: () => void;
   onViewProfile?: (user: User) => void;
   onUpdateUser?: (updates: Partial<User>) => void;
+  onShowGroupSettings?: (group: User) => void;
   theme: string;
+  chats?: ChatSession[];
+  onShowAlert?: (title: string, message: string) => void;
+  onShowConfirm?: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 function formatLastActive(isoString: string | undefined) {
@@ -83,11 +87,22 @@ function getWallpaperStyle(wallpaper: string, isLightMode: boolean) {
   return { background: wallpaper };
 }
 
-export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, theme }: ChatAreaProps) {
+export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, onShowGroupSettings, theme, chats = [], onShowAlert, onShowConfirm }: ChatAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const mentionableUsers = React.useMemo(() => {
+    const usersMap = new Map<string, User>();
+    if (currentUser) {
+      usersMap.set(currentUser.username, currentUser);
+    }
+    if (chat && chat.peer) {
+      usersMap.set(chat.peer.username, chat.peer);
+    }
+    return Array.from(usersMap.values());
+  }, [currentUser, chat]);
   
   const [showMenu, setShowMenu] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
@@ -212,7 +227,11 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
       })
       .join('\n');
     navigator.clipboard.writeText(combinedText);
-    window.alert(`Copied ${selectedMsgs.length} messages to clipboard!`);
+    if (onShowAlert) {
+      onShowAlert('Copy Messages', `Copied ${selectedMsgs.length} messages to clipboard!`);
+    } else {
+      window.alert(`Copied ${selectedMsgs.length} messages to clipboard!`);
+    }
   };
 
   const handleDeleteSelected = async () => {
@@ -222,11 +241,15 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
       .map((m) => m.id);
 
     if (ownSelectedMessageIds.length === 0) {
-      window.alert("You can only delete your own messages.");
+      if (onShowAlert) {
+        onShowAlert('Action Denied', "You can only delete your own messages.");
+      } else {
+        window.alert("You can only delete your own messages.");
+      }
       return;
     }
 
-    if (window.confirm(`Delete ${ownSelectedMessageIds.length} selected message(s)?`)) {
+    const performDelete = async () => {
       try {
         await Promise.all(
           ownSelectedMessageIds.map((id) => onDeleteMessage(chat.id, id))
@@ -236,6 +259,16 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
       } catch (err) {
         console.error("Failed to delete selected messages:", err);
       }
+    };
+
+    if (onShowConfirm) {
+      onShowConfirm(
+        'Delete Messages',
+        `Delete ${ownSelectedMessageIds.length} selected message(s)?`,
+        performDelete
+      );
+    } else if (window.confirm(`Delete ${ownSelectedMessageIds.length} selected message(s)?`)) {
+      await performDelete();
     }
   };
 
@@ -302,10 +335,12 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_80px_rgba(99,102,241,0.15)] glass">
-            <div className="w-16 h-16 gradient-msg rounded-full flex items-center justify-center text-white/90">
-               <span className="text-3xl font-serif italic font-bold">d</span>
-            </div>
+          <div className="w-40 h-40 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_80px_rgba(99,102,241,0.15)] glass">
+            <img 
+              src={theme === 'light' ? '/logo_lightmode.ico' : '/logo_darkmode.ico'} 
+              alt="Dicord Logo" 
+              className="w-28 h-28 object-contain pointer-events-none select-none" 
+            />
           </div>
           <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">Dicord</h2>
           <p className="text-theme-muted text-sm max-w-[280px] mx-auto leading-relaxed mt-4">
@@ -377,7 +412,13 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
             </button>
             
             <div 
-              onClick={() => onViewProfile?.(chat.peer)}
+              onClick={() => {
+                if (chat.peer.isGroup) {
+                  onShowGroupSettings?.(chat.peer);
+                } else {
+                  onViewProfile?.(chat.peer);
+                }
+              }}
               className="flex items-center space-x-4 cursor-pointer group"
             >
               <div className="relative hidden sm:block">
@@ -586,7 +627,8 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     }}
                     onViewProfile={onViewProfile}
                     onReact={(reaction) => onReact?.(message.id, reaction)}
-                    currentUserId={currentUser.id}
+                    currentUser={currentUser}
+                    theme={theme}
                     isSelectionMode={isSelectionMode}
                     isSelected={selectedMessageIds.has(message.id)}
                     onToggleSelect={() => handleToggleSelect(message.id)}
@@ -628,6 +670,8 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               }}
               replyToMessage={replyToMessage}
               onCancelReply={() => setReplyToMessage(null)}
+              mentionableUsers={mentionableUsers}
+              onShowAlert={onShowAlert}
             />
           )}
         </div>

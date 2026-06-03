@@ -114,7 +114,13 @@ function getFileConfig(url: string, mediaType: string) {
   }
 }
 
-function parseMarkdown(text: string): React.ReactNode {
+function parseMarkdown(
+  text: string, 
+  currentUsername?: string, 
+  onViewMention?: (username: string) => void,
+  isBubbleMine?: boolean,
+  theme?: string
+): React.ReactNode {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
@@ -147,7 +153,7 @@ function parseMarkdown(text: string): React.ReactNode {
       const quoteText = line.slice(2);
       elements.push(
         <blockquote key={`quote-${i}`} className="border-l-4 border-slate-500/40 pl-3 italic text-theme-muted my-1 text-left select-text">
-          {parseInlineMarkdown(quoteText)}
+          {parseInlineMarkdown(quoteText, currentUsername, onViewMention, isBubbleMine, theme)}
         </blockquote>
       );
       continue;
@@ -156,7 +162,7 @@ function parseMarkdown(text: string): React.ReactNode {
     if (line.startsWith('# ')) {
       elements.push(
         <h1 key={`h1-${i}`} className="text-xl sm:text-2xl font-extrabold tracking-tight mt-1.5 mb-1 text-left leading-normal select-text text-white">
-          {parseInlineMarkdown(line.slice(2))}
+          {parseInlineMarkdown(line.slice(2), currentUsername, onViewMention, isBubbleMine, theme)}
         </h1>
       );
       continue;
@@ -164,7 +170,7 @@ function parseMarkdown(text: string): React.ReactNode {
     if (line.startsWith('## ')) {
       elements.push(
         <h2 key={`h2-${i}`} className="text-lg sm:text-xl font-bold tracking-tight mt-1 mb-0.5 text-left leading-normal select-text text-white">
-          {parseInlineMarkdown(line.slice(3))}
+          {parseInlineMarkdown(line.slice(3), currentUsername, onViewMention, isBubbleMine, theme)}
         </h2>
       );
       continue;
@@ -172,7 +178,7 @@ function parseMarkdown(text: string): React.ReactNode {
     if (line.startsWith('### ')) {
       elements.push(
         <h3 key={`h3-${i}`} className="text-base sm:text-lg font-bold mt-1 text-left leading-normal select-text text-white">
-          {parseInlineMarkdown(line.slice(4))}
+          {parseInlineMarkdown(line.slice(4), currentUsername, onViewMention, isBubbleMine, theme)}
         </h3>
       );
       continue;
@@ -180,7 +186,7 @@ function parseMarkdown(text: string): React.ReactNode {
 
     elements.push(
       <div key={`line-${i}`} className="min-h-[1.2rem] select-text">
-        {parseInlineMarkdown(line)}
+        {parseInlineMarkdown(line, currentUsername, onViewMention, isBubbleMine, theme)}
       </div>
     );
   }
@@ -196,10 +202,16 @@ function parseMarkdown(text: string): React.ReactNode {
   return <>{elements}</>;
 }
 
-function parseInlineMarkdown(text: string): React.ReactNode {
+function parseInlineMarkdown(
+  text: string, 
+  currentUsername?: string, 
+  onViewMention?: (username: string) => void,
+  isBubbleMine?: boolean,
+  theme?: string
+): React.ReactNode {
   if (!text) return '';
 
-  let parts: { type: 'text' | 'code' | 'bold' | 'italic' | 'bold_italic' | 'strike'; text: string }[] = [
+  let parts: { type: 'text' | 'code' | 'bold' | 'italic' | 'bold_italic' | 'strike' | 'mention'; text: string }[] = [
     { type: 'text', text }
   ];
 
@@ -303,6 +315,26 @@ function parseInlineMarkdown(text: string): React.ReactNode {
     return subParts;
   });
 
+  // 6. Parse mentions: @username
+  parts = parts.flatMap((part) => {
+    if (part.type !== 'text') return part;
+    const regex = /@([a-zA-Z0-9_.-]+)/g;
+    const subParts = [];
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(part.text)) !== null) {
+      if (match.index > lastIndex) {
+        subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex, match.index) });
+      }
+      subParts.push({ type: 'mention' as const, text: match[1] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < part.text.length) {
+      subParts.push({ type: 'text' as const, text: part.text.substring(lastIndex) });
+    }
+    return subParts;
+  });
+
   return (
     <>
       {parts.map((part, idx) => {
@@ -321,6 +353,40 @@ function parseInlineMarkdown(text: string): React.ReactNode {
             return <em key={idx}>{part.text}</em>;
           case 'strike':
             return <del key={idx} className="line-through opacity-75">{part.text}</del>;
+          case 'mention':
+            const isMe = currentUsername && part.text.toLowerCase() === currentUsername.toLowerCase();
+            const isLight = theme === 'light';
+            
+            let pillClass = '';
+            if (isBubbleMine) {
+              pillClass = isMe 
+                ? 'bg-amber-400/20 hover:bg-amber-400/35 border-amber-400/30 text-amber-200' 
+                : 'bg-indigo-300/20 hover:bg-indigo-300/35 border-indigo-300/30 text-indigo-100';
+            } else {
+              if (isLight) {
+                pillClass = isMe
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-900 shadow-[0_0_8px_rgba(245,158,11,0.05)]'
+                  : 'bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-500/40 text-indigo-900';
+              } else {
+                pillClass = isMe
+                  ? 'bg-amber-400/15 hover:bg-amber-400/30 border-amber-400/30 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.05)]'
+                  : 'bg-indigo-400/15 hover:bg-indigo-400/30 border-indigo-400/30 text-indigo-200';
+              }
+            }
+            
+            return (
+              <span 
+                key={idx} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewMention?.(part.text);
+                }}
+                className={`inline-block px-1.5 py-0.5 rounded cursor-pointer font-bold transition-all duration-150 border select-none ${pillClass} ${isMe && !isBubbleMine ? 'animate-pulse' : ''}`}
+                title={`Click to view profile of @${part.text}`}
+              >
+                @{part.text}
+              </span>
+            );
           default:
             return part.text;
         }
@@ -334,9 +400,9 @@ interface MessageItemProps {
   isMine: boolean;
   peer: User;
   onDelete?: () => void;
-  onViewProfile?: (user: User) => void;
+  onViewProfile?: (user: User | string) => void;
   onReact?: (reaction: string) => void;
-  currentUserId: string;
+  currentUser: User;
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -347,6 +413,7 @@ interface MessageItemProps {
   onPin?: () => void;
   onEdit?: (messageId: string, text: string) => void | Promise<void>;
   onEditEnd?: () => void;
+  theme?: string;
 }
 
 export function MessageItem({ 
@@ -356,7 +423,7 @@ export function MessageItem({
   onDelete, 
   onViewProfile, 
   onReact, 
-  currentUserId,
+  currentUser,
   isSelectionMode = false,
   isSelected = false,
   onToggleSelect,
@@ -366,10 +433,43 @@ export function MessageItem({
   isHighlighted = false,
   onPin,
   onEdit,
-  onEditEnd
+  onEditEnd,
+  theme = 'dark'
 }: MessageItemProps) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(message.text);
+
+  const senderUser = React.useMemo(() => {
+    if (peer.isGroup) {
+      return {
+        id: message.authorId,
+        username: message.authorId,
+        displayName: message.authorName || message.authorId,
+        avatar: message.authorAvatar || '',
+      };
+    }
+    return peer;
+  }, [peer, message]);
+
+  const isMentioned = React.useMemo(() => {
+    if (!message.text || !currentUser?.username) return false;
+    const regex = new RegExp(`@${currentUser.username}\\b`, 'i');
+    return regex.test(message.text);
+  }, [message.text, currentUser?.username]);
+
+  const highlightMention = !isMine && isMentioned;
+
+  const handleViewMention = (mentionedUsername: string) => {
+    if (!onViewProfile) return;
+    const lowerName = mentionedUsername.toLowerCase();
+    if (lowerName === currentUser.username.toLowerCase()) {
+      onViewProfile(currentUser);
+    } else if (lowerName === peer.username.toLowerCase() && !peer.isGroup) {
+      onViewProfile(peer);
+    } else {
+      onViewProfile(mentionedUsername);
+    }
+  };
 
   React.useEffect(() => {
     setEditText(message.text);
@@ -447,6 +547,8 @@ export function MessageItem({
         isSelectionMode ? 'hover:bg-indigo-500/5 bg-indigo-500/[0.01] cursor-pointer' : ''
       } ${isSelected ? 'bg-indigo-500/10 hover:bg-indigo-500/15' : ''} ${
         isHighlighted ? 'bg-indigo-500/20 ring-1 ring-indigo-500/30 shadow-[inset_0_0_20px_rgba(99,102,241,0.15)] rounded-xl' : ''
+      } ${
+        highlightMention ? 'bg-amber-500/5 hover:bg-amber-500/10 border-l-[3px] border-amber-500/70 shadow-[inset_0_0_20px_rgba(245,158,11,0.02)]' : ''
       }`}
     >
       {/* Selection Checkbox */}
@@ -484,16 +586,25 @@ export function MessageItem({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onViewProfile?.(peer);
+                onViewProfile?.(senderUser);
               }}
               className="cursor-pointer group hover:scale-105 transition-transform"
             >
-              <Avatar user={peer} className="w-8 h-8 hidden sm:flex shrink-0" />
+              <Avatar user={senderUser} className="w-8 h-8 hidden sm:flex shrink-0" />
             </button>
           )
         )}
       
       <div className={`relative flex flex-col group ${isMine ? 'items-end max-w-[70%] sm:max-w-[75%]' : 'items-start max-w-full'}`}>
+        {/* Author Name for Group Chats */}
+        {peer.isGroup && !isMine && !isGroupedWithPrevious && (
+          <div className="flex items-center gap-1.5 text-[10px] text-theme-muted font-bold mb-1 ml-1 select-none">
+            <span className="text-white hover:underline cursor-pointer" onClick={() => onViewProfile?.(senderUser)}>
+              {message.authorName || message.authorId}
+            </span>
+            <span className="opacity-75 font-normal">@{message.authorId}</span>
+          </div>
+        )}
         
         {/* Action Menu (Reply, Pin, Delete) */}
         {!message.pending && !isSelectionMode && (
@@ -650,7 +761,7 @@ export function MessageItem({
             ) : (
               message.text && (
                 <div className={`relative z-10 break-words ${isAttachment ? 'block mb-2 font-medium' : ''}`}>
-                  {parseMarkdown(message.text)}
+                  {parseMarkdown(message.text, currentUser.username, handleViewMention, isMine, theme)}
                   {message.edited && (
                     <span className="text-[9px] text-theme-muted/80 ml-1.5 select-none hover:text-indigo-400 font-bold uppercase tracking-wider">
                       (edited)
@@ -848,7 +959,7 @@ export function MessageItem({
         {message.reactions && Object.keys(message.reactions).length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
             {Object.entries(message.reactions).map(([reaction, users]) => {
-              const hasReacted = users.includes(currentUserId);
+              const hasReacted = users.includes(currentUser.id);
               return (
                 <button
                   key={reaction}

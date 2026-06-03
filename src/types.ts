@@ -23,6 +23,8 @@ export interface User {
     showWebsite?: boolean;
   };
   badges?: string[];
+  isGroup?: boolean;
+  participants?: string[];
 }
 
 export interface Message {
@@ -30,6 +32,7 @@ export interface Message {
   text: string;
   authorId: string;
   authorName?: string;
+  authorAvatar?: string;
   gifUrl?: string;
   mediaUrl?: string;
   mediaType?: string;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Search, LogOut, Settings, Plus, VolumeX, Ban } from 'lucide-react';
+import { Search, LogOut, Settings, Plus, VolumeX, Ban, Users } from 'lucide-react';
 import { ChatSession, User } from '../types';
 import { Avatar } from './Avatar';
 
@@ -13,9 +13,20 @@ interface SidebarProps {
   onSettings: () => void;
   onNewChat: (username: string) => void;
   onViewProfile?: (user: User) => void;
+  onShowCreateGroup: () => void;
 }
 
-export function Sidebar({ currentUser, chats, activeChatId, onSelectChat, onLogout, onSettings, onNewChat, onViewProfile }: SidebarProps) {
+export function Sidebar({
+  currentUser,
+  chats,
+  activeChatId,
+  onSelectChat,
+  onLogout,
+  onSettings,
+  onNewChat,
+  onViewProfile,
+  onShowCreateGroup
+}: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredChats = chats.filter((chat) => {
@@ -33,7 +44,6 @@ export function Sidebar({ currentUser, chats, activeChatId, onSelectChat, onLogo
       return chat.peer.username.toLowerCase().includes(query);
     }
   });
-
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
@@ -58,6 +68,13 @@ export function Sidebar({ currentUser, chats, activeChatId, onSelectChat, onLogo
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <button
+            onClick={onShowCreateGroup}
+            className="w-8 h-8 rounded-full glass flex items-center justify-center cursor-pointer hover:bg-theme-bg/10 transition-colors text-theme-text"
+            title="Create Group Chat"
+          >
+            <Users size={16} />
+          </button>
           <button
             onClick={onSettings}
             className="w-8 h-8 rounded-full glass flex items-center justify-center cursor-pointer hover:bg-theme-bg/10 transition-colors text-theme-text"

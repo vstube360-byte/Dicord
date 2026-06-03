@@ -295,11 +295,19 @@ export function ProfileSettings({ user, onUpdate, onClose, onDeleteAccount, them
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { id: 'dark', name: 'Dark Mode', color: 'bg-slate-800 border-slate-700' },
-                        { id: 'light', name: 'Light Mode', color: 'bg-slate-200 border-slate-350' },
-                        { id: 'forest', name: 'Forest Moss', color: 'bg-emerald-800 border-emerald-700' },
-                        { id: 'sunset', name: 'Sunset Terracotta', color: 'bg-amber-700 border-amber-600' },
-                        { id: 'cyberpunk', name: 'Neon Cyberpunk', color: 'bg-purple-950 border border-pink-500/30' }
+                        { id: 'dark', name: 'Dark Mode', color: 'bg-slate-800 border border-slate-700' },
+                        { id: 'light', name: 'Light Mode', color: 'bg-slate-200 border border-slate-350' },
+                        { id: 'midnight', name: 'Midnight', color: 'bg-slate-950 border border-indigo-955' },
+                        { id: 'slate', name: 'Slate', color: 'bg-slate-600 border border-slate-500' },
+                        { id: 'violet', name: 'Violet', color: 'bg-violet-900 border border-violet-850' },
+                        { id: 'spruce', name: 'Spruce', color: 'bg-emerald-950 border border-emerald-800' },
+                        { id: 'bordeaux', name: 'Bordeaux', color: 'bg-rose-950 border border-rose-900' },
+                        { id: 'auroramoss', name: 'Aurora Moss', color: 'bg-teal-950 border border-teal-800' },
+                        { id: 'forest', name: 'Forest Moss', color: 'bg-emerald-800 border border-emerald-700' },
+                        { id: 'sunset', name: 'Sunset Terracotta', color: 'bg-amber-700 border border-amber-600' },
+                        { id: 'cyberpunk', name: 'Purple Cyberpunk', color: 'bg-purple-950 border border-pink-500/30' },
+                        { id: 'crimsonnight', name: 'Crimson Night', color: 'bg-red-950 border border-red-800' },
+                        { id: 'deepocean', name: 'Deep Ocean', color: 'bg-blue-950 border border-blue-800' },
                       ].map((t) => (
                         <button
                           key={t.id}
