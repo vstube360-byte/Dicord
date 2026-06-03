@@ -133,7 +133,7 @@ function parseMarkdown(
     if (line.startsWith('```')) {
       if (inCodeBlock) {
         elements.push(
-          <pre key={`code-${i}`} className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 select-text">
+          <pre key={`code-${i}`} className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 lg:select-text select-none">
             <code>{codeBlockContent.join('\n')}</code>
           </pre>
         );
@@ -153,7 +153,7 @@ function parseMarkdown(
     if (line.startsWith('> ')) {
       const quoteText = line.slice(2);
       elements.push(
-        <blockquote key={`quote-${i}`} className="border-l-4 border-slate-500/40 pl-3 italic text-theme-muted my-1 text-left select-text">
+        <blockquote key={`quote-${i}`} className="border-l-4 border-slate-500/40 pl-3 italic text-theme-muted my-1 text-left lg:select-text select-none">
           {parseInlineMarkdown(quoteText, currentUsername, onViewMention, isBubbleMine, theme)}
         </blockquote>
       );
@@ -162,7 +162,7 @@ function parseMarkdown(
 
     if (line.startsWith('# ')) {
       elements.push(
-        <h1 key={`h1-${i}`} className="text-xl sm:text-2xl font-extrabold tracking-tight mt-1.5 mb-1 text-left leading-normal select-text text-white">
+        <h1 key={`h1-${i}`} className="text-xl sm:text-2xl font-extrabold tracking-tight mt-1.5 mb-1 text-left leading-normal lg:select-text select-none text-white">
           {parseInlineMarkdown(line.slice(2), currentUsername, onViewMention, isBubbleMine, theme)}
         </h1>
       );
@@ -170,7 +170,7 @@ function parseMarkdown(
     }
     if (line.startsWith('## ')) {
       elements.push(
-        <h2 key={`h2-${i}`} className="text-lg sm:text-xl font-bold tracking-tight mt-1 mb-0.5 text-left leading-normal select-text text-white">
+        <h2 key={`h2-${i}`} className="text-lg sm:text-xl font-bold tracking-tight mt-1 mb-0.5 text-left leading-normal lg:select-text select-none text-white">
           {parseInlineMarkdown(line.slice(3), currentUsername, onViewMention, isBubbleMine, theme)}
         </h2>
       );
@@ -178,7 +178,7 @@ function parseMarkdown(
     }
     if (line.startsWith('### ')) {
       elements.push(
-        <h3 key={`h3-${i}`} className="text-base sm:text-lg font-bold mt-1 text-left leading-normal select-text text-white">
+        <h3 key={`h3-${i}`} className="text-base sm:text-lg font-bold mt-1 text-left leading-normal lg:select-text select-none text-white">
           {parseInlineMarkdown(line.slice(4), currentUsername, onViewMention, isBubbleMine, theme)}
         </h3>
       );
@@ -186,7 +186,7 @@ function parseMarkdown(
     }
 
     elements.push(
-      <div key={`line-${i}`} className="min-h-[1.2rem] select-text">
+      <div key={`line-${i}`} className="min-h-[1.2rem] lg:select-text select-none">
         {parseInlineMarkdown(line, currentUsername, onViewMention, isBubbleMine, theme)}
       </div>
     );
@@ -194,7 +194,7 @@ function parseMarkdown(
 
   if (inCodeBlock && codeBlockContent.length > 0) {
     elements.push(
-      <pre key="code-unclosed" className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 select-text">
+      <pre key="code-unclosed" className="bg-black/35 rounded-lg p-3 font-mono text-[11px] my-1 overflow-x-auto border border-theme-border/50 text-left text-slate-100 lg:select-text select-none">
         <code>{codeBlockContent.join('\n')}</code>
       </pre>
     );
@@ -984,7 +984,7 @@ export function MessageItem({
 
                   {/* Description */}
                   {embed.description && (
-                    <p className="text-xs text-theme-text mt-2 leading-relaxed break-words whitespace-pre-wrap select-text">
+                    <p className="text-xs text-theme-text mt-2 leading-relaxed break-words whitespace-pre-wrap lg:select-text select-none">
                       {embed.description}
                     </p>
                   )}
@@ -1031,6 +1031,128 @@ export function MessageItem({
             })}
           </div>
         )}
+
+        <AnimatePresence>
+          {showLongPressMenu && (
+            <>
+              {/* Transparent backdrop overlay to dismiss on click away */}
+              <div 
+                className="fixed inset-0 z-[90] bg-transparent cursor-default"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLongPressMenu(false);
+                }}
+              />
+              {/* Compact Menu Tooltip above the message */}
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-[100] animate-in fade-in zoom-in-95 duration-100 select-none">
+                {/* Reactions row */}
+                {onReact && !message.pending && (
+                  <div className="flex items-center bg-theme-panel/95 backdrop-blur border border-theme-border rounded-t-xl px-2 py-1 shadow-lg gap-1 border-b-0">
+                    {['👍', '❤️', '😂', '🔥', '🎉', '😢'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowLongPressMenu(false);
+                          onReact(emoji);
+                        }}
+                        className="w-7 h-7 flex items-center justify-center text-sm rounded-full hover:bg-white/10 active:bg-white/20 transition-all cursor-pointer hover:scale-115 active:scale-95 duration-100"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Action buttons row */}
+                <div className={`flex items-center bg-theme-panel/95 backdrop-blur border border-theme-border p-1 shadow-xl gap-1 ${onReact && !message.pending ? 'rounded-b-xl border-t-theme-border/50' : 'rounded-xl'}`}>
+                  {/* Reply */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowLongPressMenu(false);
+                      onReply?.();
+                    }}
+                    className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
+                    title="Reply"
+                  >
+                    <Reply size={14} />
+                  </button>
+
+                  {/* Edit */}
+                  {isMine && onEdit && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLongPressMenu(false);
+                        setIsEditing(true);
+                      }}
+                      className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+
+                  {/* Pin / Unpin */}
+                  {onPin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLongPressMenu(false);
+                        onPin();
+                      }}
+                      className={`w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors ${
+                        message.pinned ? 'text-indigo-400' : 'text-theme-muted hover:text-indigo-400'
+                      }`}
+                      title={message.pinned ? "Unpin" : "Pin"}
+                    >
+                      <Pin size={14} className={message.pinned ? "fill-indigo-400/20" : ""} />
+                    </button>
+                  )}
+
+                  {/* Copy */}
+                  {message.text && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLongPressMenu(false);
+                        navigator.clipboard.writeText(message.text);
+                        if (onShowAlert) {
+                          onShowAlert('Clipboard Copy', 'Message copied to clipboard.');
+                        }
+                      }}
+                      className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
+                      title="Copy"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  )}
+
+                  {/* Delete */}
+                  {isMine && onDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLongPressMenu(false);
+                        onDelete();
+                      }}
+                      className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
 
       {isMine && !isGroupedWithNext && (
@@ -1045,135 +1167,6 @@ export function MessageItem({
       )}
       </div>
 
-      <AnimatePresence>
-        {showLongPressMenu && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm select-none font-sans" onClick={() => setShowLongPressMenu(false)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-xs bg-theme-panel border border-theme-border rounded-[28px] shadow-2xl p-5 flex flex-col gap-2.5 text-left text-theme-text"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header: message preview */}
-              <div className="border-b border-theme-border pb-3 shrink-0">
-                <span className="text-[10px] text-theme-muted uppercase font-black tracking-wider block mb-1">Message Actions</span>
-                <p className="text-xs text-theme-text truncate italic opacity-80">
-                  {message.text || (message.gifUrl ? '[GIF]' : '[Attachment]')}
-                </p>
-              </div>
-
-              {/* Reaction Emojis */}
-              {onReact && !message.pending && (
-                <div className="flex justify-between items-center border-b border-theme-border pb-2 pt-1 shrink-0">
-                  {['👍', '❤️', '😂', '🔥', '🎉', '😢'].map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => {
-                        setShowLongPressMenu(false);
-                        onReact(emoji);
-                      }}
-                      className="w-9 h-9 flex items-center justify-center text-lg rounded-full hover:bg-white/10 active:bg-white/20 transition-all cursor-pointer hover:scale-115 active:scale-95 duration-100"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Action list */}
-              <div className="flex flex-col gap-1.5 py-1 font-sans">
-                {/* Reply */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLongPressMenu(false);
-                    onReply?.();
-                  }}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
-                >
-                  <Reply size={16} className="text-indigo-400" />
-                  <span>Reply</span>
-                </button>
-
-                {/* Pin / Unpin */}
-                {onPin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLongPressMenu(false);
-                      onPin();
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
-                  >
-                    <Pin size={16} className={message.pinned ? "text-indigo-400 fill-indigo-400/20" : "text-indigo-400"} />
-                    <span>{message.pinned ? 'Unpin Message' : 'Pin Message'}</span>
-                  </button>
-                )}
-
-                {/* Copy Text */}
-                {message.text && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLongPressMenu(false);
-                      navigator.clipboard.writeText(message.text);
-                      if (onShowAlert) {
-                        onShowAlert('Clipboard Copy', 'Message copied to clipboard.');
-                      }
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
-                  >
-                    <Copy size={16} className="text-indigo-400" />
-                    <span>Copy Text</span>
-                  </button>
-                )}
-
-                {/* Edit */}
-                {isMine && onEdit && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLongPressMenu(false);
-                      setIsEditing(true);
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
-                  >
-                    <Pencil size={16} className="text-indigo-400" />
-                    <span>Edit Message</span>
-                  </button>
-                )}
-
-                {/* Delete */}
-                {isMine && onDelete && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLongPressMenu(false);
-                      onDelete();
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-rose-400 hover:text-rose-350 transition-colors cursor-pointer text-left"
-                  >
-                    <Trash2 size={16} className="text-rose-500" />
-                    <span>Delete Message</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => setShowLongPressMenu(false)}
-                className="w-full mt-1.5 py-3 text-xs font-black uppercase tracking-wider rounded-2xl bg-theme-bg border border-theme-border hover:bg-white/5 text-theme-muted hover:text-theme-text text-center transition-all cursor-pointer"
-              >
-                Close
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }

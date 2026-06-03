@@ -373,7 +373,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
 
   return (
     <div 
-      className="flex-1 flex flex-col h-full bg-theme-bg relative z-0 transition-all duration-300"
+      className="flex-1 flex flex-col h-full overflow-hidden bg-theme-bg relative z-0 transition-all duration-300"
       style={wallpaperStyle}
     >
       {/* Header */}
@@ -605,11 +605,11 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
 
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
         {/* Left Side: Messages list & Composer */}
-        <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
           {/* Messages Area */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 flex flex-col gap-2 relative z-0 scrollbar-hide"
+            className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-8 py-8 flex flex-col gap-2 relative z-0 scrollbar-hide"
           >
             <AnimatePresence initial={false} mode="popLayout">
               {chat.messages.map((message, index) => {
