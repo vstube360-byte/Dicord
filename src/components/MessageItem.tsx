@@ -590,7 +590,9 @@ export function MessageItem({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className={`flex group relative hover:z-30 items-center w-full px-4 py-1 hover:bg-white/[0.01] transition-all select-none ${
+      className={`flex group relative items-center w-full px-4 py-1 hover:bg-white/[0.01] transition-all select-none ${
+        showLongPressMenu ? 'z-[1000]' : 'hover:z-30 z-0'
+      } ${
         isGroupedWithPrevious ? 'mt-0' : 'mt-3'
       } ${
         isSelectionMode ? 'hover:bg-indigo-500/5 bg-indigo-500/[0.01] cursor-pointer' : ''
@@ -1044,7 +1046,10 @@ export function MessageItem({
                 }}
               />
               {/* Compact Menu Tooltip above the message */}
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-[100] animate-in fade-in zoom-in-95 duration-100 select-none">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-[100] animate-in fade-in zoom-in-95 duration-100 select-none"
+              >
                 {/* Reactions row */}
                 {onReact && !message.pending && (
                   <div className="flex items-center bg-theme-panel/95 backdrop-blur border border-theme-border rounded-t-xl px-2 py-1 shadow-lg gap-1 border-b-0">
