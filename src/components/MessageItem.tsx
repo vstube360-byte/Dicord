@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Message, User } from '../types';
 import { 
   Trash2, 
@@ -14,7 +14,8 @@ import {
   Check,
   Reply,
   Pin,
-  Pencil
+  Pencil,
+  Copy
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 
@@ -414,6 +415,7 @@ interface MessageItemProps {
   onEdit?: (messageId: string, text: string) => void | Promise<void>;
   onEditEnd?: () => void;
   theme?: string;
+  onShowAlert?: (title: string, message: string) => void;
 }
 
 export function MessageItem({ 
@@ -434,10 +436,54 @@ export function MessageItem({
   onPin,
   onEdit,
   onEditEnd,
-  theme = 'dark'
+  theme = 'dark',
+  onShowAlert
 }: MessageItemProps) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(message.text);
+
+  const [showLongPressMenu, setShowLongPressMenu] = useState(false);
+  const touchTimerRef = useRef<number | null>(null);
+  const hasMovedRef = useRef(false);
+  const isTouchRef = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isTouchRef.current = true;
+    hasMovedRef.current = false;
+    if (e.touches.length !== 1) return;
+
+    touchTimerRef.current = window.setTimeout(() => {
+      setShowLongPressMenu(true);
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(50);
+        } catch (err) {
+          // ignore vibration errors (e.g. permission issues in browser)
+        }
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }, 600);
+  };
+
+  const handleTouchMove = () => {
+    hasMovedRef.current = true;
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    if (showLongPressMenu) {
+      e.preventDefault();
+    }
+  };
 
   const senderUser = React.useMemo(() => {
     if (peer.isGroup) {
@@ -537,6 +583,9 @@ export function MessageItem({
       layout
       id={`msg-${message.id}`}
       onClick={isSelectionMode ? onToggleSelect : undefined}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       initial={{ opacity: 0, y: 15, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
@@ -709,7 +758,11 @@ export function MessageItem({
         {/* Text Bubble: Only render if there's actual text, a GIF, or standard image/video attachments, or if editing */}
         {(message.text || message.gifUrl || (message.mediaUrl && message.mediaType !== 'document') || isEditing) && (
           <div
-            onDoubleClick={() => {
+            onDoubleClick={(e) => {
+              if (isTouchRef.current) {
+                isTouchRef.current = false;
+                return;
+              }
               if (isMine && !message.pending && onEdit) {
                 setIsEditing(true);
               }
@@ -991,6 +1044,136 @@ export function MessageItem({
          </div>
       )}
       </div>
+
+      <AnimatePresence>
+        {showLongPressMenu && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm select-none font-sans" onClick={() => setShowLongPressMenu(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full max-w-xs bg-theme-panel border border-theme-border rounded-[28px] shadow-2xl p-5 flex flex-col gap-2.5 text-left text-theme-text"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header: message preview */}
+              <div className="border-b border-theme-border pb-3 shrink-0">
+                <span className="text-[10px] text-theme-muted uppercase font-black tracking-wider block mb-1">Message Actions</span>
+                <p className="text-xs text-theme-text truncate italic opacity-80">
+                  {message.text || (message.gifUrl ? '[GIF]' : '[Attachment]')}
+                </p>
+              </div>
+
+              {/* Reaction Emojis */}
+              {onReact && !message.pending && (
+                <div className="flex justify-between items-center border-b border-theme-border pb-2 pt-1 shrink-0">
+                  {['👍', '❤️', '😂', '🔥', '🎉', '😢'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        setShowLongPressMenu(false);
+                        onReact(emoji);
+                      }}
+                      className="w-9 h-9 flex items-center justify-center text-lg rounded-full hover:bg-white/10 active:bg-white/20 transition-all cursor-pointer hover:scale-115 active:scale-95 duration-100"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Action list */}
+              <div className="flex flex-col gap-1.5 py-1 font-sans">
+                {/* Reply */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLongPressMenu(false);
+                    onReply?.();
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
+                >
+                  <Reply size={16} className="text-indigo-400" />
+                  <span>Reply</span>
+                </button>
+
+                {/* Pin / Unpin */}
+                {onPin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLongPressMenu(false);
+                      onPin();
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
+                  >
+                    <Pin size={16} className={message.pinned ? "text-indigo-400 fill-indigo-400/20" : "text-indigo-400"} />
+                    <span>{message.pinned ? 'Unpin Message' : 'Pin Message'}</span>
+                  </button>
+                )}
+
+                {/* Copy Text */}
+                {message.text && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLongPressMenu(false);
+                      navigator.clipboard.writeText(message.text);
+                      if (onShowAlert) {
+                        onShowAlert('Clipboard Copy', 'Message copied to clipboard.');
+                      }
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
+                  >
+                    <Copy size={16} className="text-indigo-400" />
+                    <span>Copy Text</span>
+                  </button>
+                )}
+
+                {/* Edit */}
+                {isMine && onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLongPressMenu(false);
+                      setIsEditing(true);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-theme-text transition-colors cursor-pointer text-left"
+                  >
+                    <Pencil size={16} className="text-indigo-400" />
+                    <span>Edit Message</span>
+                  </button>
+                )}
+
+                {/* Delete */}
+                {isMine && onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLongPressMenu(false);
+                      onDelete();
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold rounded-2xl hover:bg-white/5 active:bg-white/10 text-rose-400 hover:text-rose-350 transition-colors cursor-pointer text-left"
+                  >
+                    <Trash2 size={16} className="text-rose-500" />
+                    <span>Delete Message</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setShowLongPressMenu(false)}
+                className="w-full mt-1.5 py-3 text-xs font-black uppercase tracking-wider rounded-2xl bg-theme-bg border border-theme-border hover:bg-white/5 text-theme-muted hover:text-theme-text text-center transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

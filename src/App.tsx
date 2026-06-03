@@ -95,6 +95,7 @@ export default function App() {
     confirmText?: string;
     cancelText?: string;
     onConfirm?: () => void | Promise<void>;
+    onCancel?: () => void;
   }>({
     isOpen: false,
     type: 'alert',
@@ -126,7 +127,6 @@ export default function App() {
         await onConfirm();
       },
       onCancel: () => {
-        setInPageDialog(prev => ({ ...prev, isOpen: false }));
         if (onCancel) onCancel();
       }
     });
@@ -1462,7 +1462,12 @@ export default function App() {
                     {inPageDialog.type === 'confirm' && (
                       <button
                         type="button"
-                        onClick={() => setInPageDialog(prev => ({ ...prev, isOpen: false }))}
+                        onClick={() => {
+                          setInPageDialog(prev => ({ ...prev, isOpen: false }));
+                          if (inPageDialog.onCancel) {
+                            inPageDialog.onCancel();
+                          }
+                        }}
                         className="px-4 py-2 text-xs font-bold rounded-xl bg-theme-bg border border-theme-border hover:bg-white/5 transition-colors cursor-pointer text-theme-text"
                       >
                         {inPageDialog.cancelText || 'Cancel'}

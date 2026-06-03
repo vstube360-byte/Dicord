@@ -93,6 +93,13 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
 
+  const focusComposer = () => {
+    const isMobile = window.innerWidth < 1024;
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    if (isMobile || isTouch) return;
+    composerInputRef.current?.focus();
+  };
+
   const mentionableUsers = React.useMemo(() => {
     const usersMap = new Map<string, User>();
     if (currentUser) {
@@ -143,7 +150,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
     setShowWallpaperModal(false);
     
     setTimeout(() => {
-      composerInputRef.current?.focus();
+      focusComposer();
     }, 50);
   }, [chat?.id]);
 
@@ -157,7 +164,17 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
         return;
       }
 
-      // 2. Check if they clicked a button, a label, or empty space
+      // 2. If the click is inside a message item, do not focus the composer
+      if (target.closest('[id^="msg-"]')) {
+        return;
+      }
+
+      // 3. Only focus the composer if the click was inside the messages list container
+      if (!scrollRef.current || !scrollRef.current.contains(target)) {
+        return;
+      }
+
+      // 4. Check if they clicked a button, a label, or empty space
       const isButton = target.closest('button, [role="button"]');
       const isComposerTextarea = target === composerInputRef.current;
       
@@ -180,7 +197,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
           ) {
             return;
           }
-          composerInputRef.current?.focus();
+          focusComposer();
         }, 0);
       }
     };
@@ -462,7 +479,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                 onClick={() => {
                   setShowSearch(!showSearch);
                   setShowPins(false);
-                  composerInputRef.current?.focus();
+                  focusComposer();
                 }}
                 className={`w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text transition-all ${
                   showSearch ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : ''
@@ -476,7 +493,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                 onClick={() => {
                   setShowPins(!showPins);
                   setShowSearch(false);
-                  composerInputRef.current?.focus();
+                  focusComposer();
                 }}
                 className={`w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text transition-all ${
                   showPins ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : ''
@@ -489,7 +506,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               <button
                 onClick={() => {
                   setSelectionModeEnabled(true);
-                  composerInputRef.current?.focus();
+                  focusComposer();
                 }}
                 className="w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text"
                 title="Select Messages"
@@ -500,7 +517,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               <button
                 onClick={() => {
                   setShowMenu(!showMenu);
-                  composerInputRef.current?.focus();
+                  focusComposer();
                 }}
                 className="w-10 h-10 rounded-xl glass flex items-center justify-center cursor-pointer hover:bg-white/10 text-theme-text"
               >
@@ -520,7 +537,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         setShowWallpaperModal(true);
                         setShowMenu(false);
-                        composerInputRef.current?.focus();
+                        focusComposer();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
@@ -531,7 +548,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     <button
                       onClick={() => {
                         handleDownloadChat();
-                        composerInputRef.current?.focus();
+                        focusComposer();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
@@ -542,7 +559,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         onToggleMute?.(chat.peer.username);
                         setShowMenu(false);
-                        composerInputRef.current?.focus();
+                        focusComposer();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-theme-text hover:text-white text-sm text-left transition-colors cursor-pointer"
                     >
@@ -562,7 +579,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                       onClick={() => {
                         onToggleBlock?.(chat.peer.username);
                         setShowMenu(false);
-                        composerInputRef.current?.focus();
+                        focusComposer();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-500/10 text-theme-text hover:text-rose-400 text-sm text-left transition-colors cursor-pointer border-t border-theme-border mt-1 pt-2.5"
                     >
@@ -619,11 +636,11 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     peer={chat.peer}
                     onDelete={onDeleteMessage ? () => {
                       onDeleteMessage(chat.id, message.id);
-                      composerInputRef.current?.focus();
+                      focusComposer();
                     } : undefined}
                     onEdit={onEditMessage ? (messageId, text) => onEditMessage(chat.id, messageId, text) : undefined}
                     onEditEnd={() => {
-                      composerInputRef.current?.focus();
+                      focusComposer();
                     }}
                     onViewProfile={onViewProfile}
                     onReact={(reaction) => onReact?.(message.id, reaction)}
@@ -634,15 +651,16 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     onToggleSelect={() => handleToggleSelect(message.id)}
                     onReply={() => {
                       setReplyToMessage(message);
-                      composerInputRef.current?.focus();
+                      focusComposer();
                     }}
                     isGroupedWithPrevious={isGroupedWithPrevious}
                     isGroupedWithNext={isGroupedWithNext}
                     isHighlighted={message.id === highlightedMessageId}
                     onPin={onTogglePin ? () => {
                       onTogglePin(chat.id, message.id);
-                      composerInputRef.current?.focus();
+                      focusComposer();
                     } : undefined}
+                    onShowAlert={onShowAlert}
                   />
                 );
               })}

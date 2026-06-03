@@ -1,161 +1,158 @@
 {
   "users": {
-    "1111": {
-      "username": "1111",
-      "displayName": "1111",
+    "1234": {
+      "username": "1234",
+      "displayName": "1234",
       "avatar": "",
-      "salt": "419e7d7579bb36e3e14f4eabbb904159d9dca2d1a6775e4c1f02a65872464692",
-      "passwordHash": "decb026127fc3cc95af32315aa1ecab81380d237f75c7185f18e7f2de01a4cd2",
-      "plainPassword": "1111",
-      "createdAt": "2026-06-03T14:43:46.449Z",
+      "salt": "2a4f73f3eef449ebe93a85598b2d09e94b528af8c1a61fe8c0e12bd87991dd75",
+      "passwordHash": "7e1eb045a215a37730b46974022bc51adb524602e5b1c0e92ffd290859238bba",
+      "plainPassword": "1234",
+      "createdAt": "2026-06-03T15:16:11.217Z",
       "blockedUsers": [],
       "mutedUsers": [],
       "appTheme": "dark",
       "status": "online",
-      "lastActive": "2026-06-03T14:44:05.575Z"
+      "lastActive": "2026-06-03T15:17:48.261Z"
     },
-    "2222": {
-      "username": "2222",
-      "displayName": "2222",
+    "4321": {
+      "username": "4321",
+      "displayName": "4321",
       "avatar": "",
-      "salt": "577590fa72b8c442de8ee092342cf26ee3c8207288fb931c0bb2999a98f7bf4e",
-      "passwordHash": "ba6dd7329ee2c1eca7c5fad06be51ec6c706dc34d668f7f3c7dbf9ba29d9cb83",
-      "plainPassword": "2222",
-      "createdAt": "2026-06-03T14:43:31.938Z",
+      "salt": "cf342c6f7b3ffe205f14cdbdbe9e48190da5a6c7bfad94a6f2b0e3dfcf6455e6",
+      "passwordHash": "02314dd244ea27b436a71a66ac1ab435cfc122024549ad2ff72b51f3edc98de7",
+      "plainPassword": "4321",
+      "createdAt": "2026-06-03T15:16:30.902Z",
       "blockedUsers": [],
       "mutedUsers": [],
       "appTheme": "dark",
       "status": "online",
-      "lastActive": "2026-06-03T14:47:33.775Z"
-    },
-    "3333": {
-      "username": "3333",
-      "displayName": "3333",
-      "avatar": "",
-      "salt": "c8eb3cab8a718fe4cfb8676e7b69861f7a99815149427051b2beb9a430c3ec95",
-      "passwordHash": "6c508ec9075f5bc38bc1987c903dd1407420d1bd944ffd2bcebbf8690cbbc686",
-      "plainPassword": "3333",
-      "createdAt": "2026-06-03T14:44:23.901Z",
-      "blockedUsers": [],
-      "mutedUsers": [],
-      "appTheme": "dark",
-      "status": "online",
-      "lastActive": "2026-06-03T14:45:20.657Z"
+      "lastActive": "2026-06-03T15:17:35.441Z"
     }
   },
   "sessions": {
-    "45e6799625b0342010cacb3dcef0e6cac5b2969d21377be063ad388188951229": {
-      "username": "2222",
-      "createdAt": "2026-06-03T14:43:31.938Z"
+    "28061e2a568926379bde54e671654240b69fefa93e01a5db8fa5cd3bcb8c0323": {
+      "username": "1234",
+      "createdAt": "2026-06-03T15:16:11.217Z"
     },
-    "dd6f15557081eea034fd04fb962d9457ce1b80bc8bbae8357d9e9326dc2ac332": {
-      "username": "1111",
-      "createdAt": "2026-06-03T14:43:46.449Z"
+    "4d3ed3e023c757e75e163ef7d7215b939db421f3ffa6eab1527b261066fd995e": {
+      "username": "4321",
+      "createdAt": "2026-06-03T15:16:30.902Z"
     },
-    "20f6b544bd27bb55a390eda6d0bd944c69a35852b3a53c7f28cdb9aadcd29369": {
-      "username": "3333",
-      "createdAt": "2026-06-03T14:44:23.901Z"
+    "fc7bd9eac2647dcd4103bd9c9f48363ee607755aa5200b483f9e822be877ecf1": {
+      "username": "1234",
+      "createdAt": "2026-06-03T15:16:46.450Z"
     }
   },
   "conversations": {
-    "group__1780497841219_c2c3d86a": {
-      "id": "group__1780497841219_c2c3d86a",
-      "name": "GG",
-      "avatar": "",
-      "isGroup": true,
+    "1234__4321": {
+      "id": "1234__4321",
       "participants": [
-        "1111",
-        "3333",
-        "2222"
+        "1234",
+        "4321"
       ],
+      "createdAt": "2026-06-03T15:16:53.980Z",
       "messages": [
         {
-          "id": "sys-1780497841219-65779e7c23436",
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780499820973-58be830db96b7",
           "type": "chat",
-          "author": "system",
-          "authorName": "System",
+          "author": "1234",
+          "authorName": "1234",
           "authorAvatar": "",
-          "text": "2222 created group \"GG\"",
-          "createdAt": "2026-06-03T14:44:01.219Z"
-        },
-        {
-          "id": "sys-1780497915356-df67ccf1a7b248",
-          "type": "chat",
-          "author": "system",
-          "authorName": "System",
-          "authorAvatar": "",
-          "text": "3333 joined the group via Developer Tool",
-          "createdAt": "2026-06-03T14:45:15.356Z"
-        },
-        {
-          "id": "1780497969092-accca22db95b38",
-          "type": "chat",
-          "author": "3333",
-          "authorName": "3333",
-          "authorAvatar": "",
-          "text": "wdefrg",
+          "text": "wdefvb",
           "gifUrl": "",
           "mediaUrl": "",
           "mediaType": "",
           "mediaSize": 0,
-          "replyTo": null,
           "embed": null,
           "embeds": [],
-          "reactions": {},
-          "createdAt": "2026-06-03T14:46:09.092Z"
+          "createdAt": "2026-06-03T15:17:00.973Z"
         },
         {
-          "id": "1780497976441-cd593f7de4d0b8",
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780499821682-b6e2f0e5dd0968",
           "type": "chat",
-          "author": "2222",
-          "authorName": "2222",
+          "author": "1234",
+          "authorName": "1234",
           "authorAvatar": "",
-          "text": "wedfv",
+          "text": "wdefv",
           "gifUrl": "",
           "mediaUrl": "",
           "mediaType": "",
           "mediaSize": 0,
-          "replyTo": null,
           "embed": null,
           "embeds": [],
+          "createdAt": "2026-06-03T15:17:01.682Z"
+        },
+        {
           "reactions": {},
-          "createdAt": "2026-06-03T14:46:16.441Z"
+          "replyTo": null,
+          "id": "1780499822275-6822110cfc2bc8",
+          "type": "chat",
+          "author": "1234",
+          "authorName": "1234",
+          "authorAvatar": "",
+          "text": "wdefv",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "embed": null,
+          "embeds": [],
+          "createdAt": "2026-06-03T15:17:02.275Z"
         },
         {
-          "id": "sys-1780498017917-9947e5f1a490b",
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780499822826-42153939ab6f5",
           "type": "chat",
-          "author": "system",
-          "authorName": "System",
+          "author": "1234",
+          "authorName": "1234",
           "authorAvatar": "",
-          "text": "2222 left the group",
-          "createdAt": "2026-06-03T14:46:57.917Z"
+          "text": "wdv",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "embed": null,
+          "embeds": [],
+          "createdAt": "2026-06-03T15:17:02.826Z"
         },
         {
-          "id": "sys-1780498035287-f70085463cebc",
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780499823362-c9eaf7c7bb95f",
           "type": "chat",
-          "author": "system",
-          "authorName": "System",
+          "author": "1234",
+          "authorName": "1234",
           "authorAvatar": "",
-          "text": "2222 joined the group via Developer Tool",
-          "createdAt": "2026-06-03T14:47:15.287Z"
+          "text": "wdecf",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "embed": null,
+          "embeds": [],
+          "createdAt": "2026-06-03T15:17:03.362Z"
         },
         {
-          "id": "sys-1780498053711-0d3ad0c6fb0ed8",
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780499835898-b23164739dde8",
           "type": "chat",
-          "author": "system",
-          "authorName": "System",
+          "author": "1234",
+          "authorName": "1234",
           "authorAvatar": "",
-          "text": "2222 left the group",
-          "createdAt": "2026-06-03T14:47:33.711Z"
-        },
-        {
-          "id": "sys-1780498064274-2c9627ad581e6",
-          "type": "chat",
-          "author": "system",
-          "authorName": "System",
-          "authorAvatar": "",
-          "text": "3333 added 2222 to the group",
-          "createdAt": "2026-06-03T14:47:44.274Z"
+          "text": "wdc",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "embed": null,
+          "embeds": [],
+          "createdAt": "2026-06-03T15:17:15.898Z"
         }
       ]
     }
