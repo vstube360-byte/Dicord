@@ -1071,10 +1071,15 @@ export function MessageItem({
                   e.stopPropagation();
                   setShowLongPressMenu(false);
                 }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
               />
               {/* Compact Menu Tooltip above the message */}
               <div 
                 onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-[100] animate-in fade-in zoom-in-95 duration-100 select-none"
               >
                 {/* Reactions row */}
