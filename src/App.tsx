@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, LogOut, Plus, X, Camera, AlertTriangle } from 'lucide-react';
+import { LogoutConfirmModal } from './components/modals/LogoutConfirmModal';
+import { CreateGroupModal } from './components/modals/CreateGroupModal';
+import { GroupSettingsModal } from './components/modals/GroupSettingsModal';
+import { InPageDialogModal } from './components/modals/InPageDialogModal';
 import { AuthScreen } from './components/AuthScreen';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
@@ -91,10 +94,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('dicord-theme') || 'dark');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showGroupSettings, setShowGroupSettings] = useState<User | null>(null);
-  const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>(() => {
     try {
@@ -150,7 +150,7 @@ export default function App() {
     });
   }, []);
 
-  const lastGroupIdRef = React.useRef<string | null>(null);
+
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -813,31 +813,7 @@ export default function App() {
     [token, currentUser, chats]
   );
 
-  const handleCreateGroup = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !groupName.trim() || selectedUsers.length === 0) return;
-    try {
-      const res = await createGroup(token, groupName.trim(), selectedUsers);
-      setGroupName('');
-      setSelectedUsers([]);
-      setMemberSearchQuery('');
-      setShowCreateGroup(false);
-      await loadChats(token);
-      
-      if (res && res.groupId) {
-        // Find or wait for the chat peer to be resolved
-        try {
-          const conversation = await fetchConversation(token, res.groupId);
-          openChat(conversation.peer);
-        } catch (fetchErr) {
-          console.error(fetchErr);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      showAlert('Error', err instanceof Error ? err.message : 'Failed to create group');
-    }
-  }, [token, groupName, selectedUsers, loadChats, openChat, showAlert]);
+
 
   const handleUpdateGroupMetadata = useCallback(async (groupId: string, name?: string, avatar?: string) => {
     if (!token) return;
@@ -935,82 +911,7 @@ export default function App() {
     );
   }, [token, activeChatId, showConfirm, showAlert]);
 
-  const [groupSettingsName, setGroupSettingsName] = useState('');
-  const [groupSettingsAvatar, setGroupSettingsAvatar] = useState('');
-  const [groupSettingsSearch, setGroupSettingsSearch] = useState('');
-  const groupIconInputRef = React.useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (showGroupSettings) {
-      const currentId = showGroupSettings.username;
-      if (lastGroupIdRef.current !== currentId) {
-        setGroupSettingsName(showGroupSettings.displayName);
-        setGroupSettingsAvatar(showGroupSettings.avatar);
-        setGroupSettingsSearch('');
-        lastGroupIdRef.current = currentId;
-      }
-    } else {
-      lastGroupIdRef.current = null;
-    }
-  }, [showGroupSettings]);
-
-  const handleGroupIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (typeof event.target?.result === 'string') {
-          setGroupSettingsAvatar(event.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSaveGroupSettings = async () => {
-    if (!showGroupSettings) return;
-    await handleUpdateGroupMetadata(showGroupSettings.username, groupSettingsName.trim(), groupSettingsAvatar);
-  };
-
-  const getGroupMembers = (participantUsernames: string[]) => {
-    return participantUsernames.map(username => {
-      const userChat = chats.find(c => c.peer.username === username);
-      if (userChat) {
-        return userChat.peer;
-      }
-      if (username === currentUser?.username) {
-        return currentUser;
-      }
-      return {
-        id: username,
-        username,
-        displayName: username,
-        avatar: '',
-      };
-    });
-  };
-
-  const availableToAdd = React.useMemo(() => {
-    if (!showGroupSettings) return [];
-    const peersMap = new Map<string, User>();
-    chats.forEach(chat => {
-      if (chat.peer && !chat.peer.isGroup && chat.peer.username !== currentUser?.username && !showGroupSettings.participants?.includes(chat.peer.username) && chat.messages.length > 0) {
-        peersMap.set(chat.peer.username, chat.peer);
-      }
-    });
-    return Array.from(peersMap.values());
-  }, [chats, currentUser, showGroupSettings]);
-
-  const otherToAdd = React.useMemo(() => {
-    if (!showGroupSettings) return [];
-    const peersMap = new Map<string, User>();
-    chats.forEach(chat => {
-      if (chat.peer && !chat.peer.isGroup && chat.peer.username !== currentUser?.username && !showGroupSettings.participants?.includes(chat.peer.username) && chat.messages.length === 0) {
-        peersMap.set(chat.peer.username, chat.peer);
-      }
-    });
-    return Array.from(peersMap.values());
-  }, [chats, currentUser, showGroupSettings]);
 
   const handleSelectChat = async (id: string) => {
     const chat = chats.find((entry) => entry.id === id);
@@ -1200,42 +1101,7 @@ export default function App() {
     [currentUser, token, showAlert]
   );
 
-  const activeInvitees = React.useMemo(() => {
-    if (!currentUser) return [];
-    const peersMap = new Map<string, User>();
-    chats.forEach(chat => {
-      if (chat.peer && !chat.peer.isGroup && chat.peer.username !== currentUser.username && chat.messages.length > 0) {
-        peersMap.set(chat.peer.username, chat.peer);
-      }
-    });
-    return Array.from(peersMap.values());
-  }, [chats, currentUser]);
 
-  const otherRegisteredUsers = React.useMemo(() => {
-    if (!currentUser) return [];
-    const peersMap = new Map<string, User>();
-    chats.forEach(chat => {
-      if (chat.peer && !chat.peer.isGroup && chat.peer.username !== currentUser.username && chat.messages.length === 0) {
-        peersMap.set(chat.peer.username, chat.peer);
-      }
-    });
-    return Array.from(peersMap.values());
-  }, [chats, currentUser]);
-
-  const filteredActiveInvitees = React.useMemo(() => {
-    return activeInvitees.filter(u => 
-      u.username.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-      u.displayName.toLowerCase().includes(memberSearchQuery.toLowerCase())
-    );
-  }, [activeInvitees, memberSearchQuery]);
-
-  const filteredOtherUsers = React.useMemo(() => {
-    if (!memberSearchQuery) return [];
-    return otherRegisteredUsers.filter(u => 
-      u.username.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-      u.displayName.toLowerCase().includes(memberSearchQuery.toLowerCase())
-    );
-  }, [otherRegisteredUsers, memberSearchQuery]);
 
   if (!currentUser || isAddingAccount) {
     return (
@@ -1336,430 +1202,58 @@ export default function App() {
 
           <AnimatePresence>
             {showLogoutConfirm && (
-              <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-sans select-none">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-sm bg-theme-panel border border-theme-border rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left text-theme-text"
-                >
-                  <div className="flex items-center gap-3 text-rose-500 font-bold text-lg">
-                    <LogOut size={20} />
-                    <span>Sign Out</span>
-                  </div>
-                  
-                  <p className="text-sm text-theme-muted leading-relaxed select-text">
-                    Are you sure you want to log out of Dicord? You will need to log back in to access your messages.
-                  </p>
-                  
-                  <div className="flex justify-end gap-3 mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowLogoutConfirm(false)}
-                      className="px-4 py-2 text-xs font-bold rounded-xl bg-theme-bg border border-theme-border hover:bg-white/5 transition-colors cursor-pointer text-theme-text"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowLogoutConfirm(false);
-                        handleLogout();
-                      }}
-                      className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-md shadow-rose-600/10 uppercase tracking-wider"
-                    >
-                      Log Out
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
+              <LogoutConfirmModal
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                onConfirm={handleLogout}
+              />
             )}
           </AnimatePresence>
 
           <AnimatePresence>
             {showCreateGroup && (
-              <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-sans select-none">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-md bg-theme-panel border border-theme-border rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left text-theme-text"
-                >
-                  <div className="flex items-center gap-3 text-indigo-400 font-bold text-lg">
-                    <Users size={20} />
-                    <span>Create Group Chat</span>
-                  </div>
-                  
-                  <form onSubmit={handleCreateGroup} className="flex flex-col gap-4">
-                    <div>
-                      <label className="text-[10px] text-theme-muted uppercase font-bold tracking-wider block mb-1.5">Group Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={groupName}
-                        onChange={e => setGroupName(e.target.value)}
-                        placeholder="Enter group name..."
-                        className="w-full bg-black/20 border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] text-theme-muted uppercase font-bold tracking-wider block mb-1.5">Search Members</label>
-                      <input
-                        type="text"
-                        value={memberSearchQuery}
-                        onChange={e => setMemberSearchQuery(e.target.value)}
-                        placeholder="Search by username or display name..."
-                        className="w-full bg-black/20 border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text placeholder:text-theme-muted focus:outline-none focus:border-indigo-500/50 transition-colors"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="text-[10px] text-theme-muted uppercase font-bold tracking-wider block mb-1.5">
-                        Select Members ({selectedUsers.length} selected)
-                      </label>
-                      
-                      {filteredActiveInvitees.length === 0 && filteredOtherUsers.length === 0 ? (
-                        <p className="text-xs text-theme-muted italic">No matching members found.</p>
-                      ) : (
-                        <div className="max-h-[160px] overflow-y-auto border border-theme-border rounded-xl p-2.5 bg-black/10 flex flex-col gap-1.5 scrollbar-hide">
-                          {/* Active conversations section */}
-                          {filteredActiveInvitees.map(invitee => {
-                            const isChecked = selectedUsers.includes(invitee.username);
-                            const handleToggle = () => {
-                              setSelectedUsers(prev => isChecked ? prev.filter(u => u !== invitee.username) : [...prev, invitee.username]);
-                            };
-                            return (
-                              <button
-                                key={invitee.id}
-                                type="button"
-                                onClick={handleToggle}
-                                className={`flex items-center justify-between p-2 rounded-lg text-left cursor-pointer transition-colors ${
-                                  isChecked ? 'bg-indigo-500/10 text-indigo-300 font-semibold' : 'hover:bg-white/5 text-theme-text'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Avatar user={invitee} className="w-6 h-6 shrink-0" />
-                                  <div className="truncate text-xs font-bold">{invitee.displayName || invitee.username}</div>
-                                </div>
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                                  isChecked ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-500 text-transparent'
-                                }}`}>
-                                  <Plus size={10} strokeWidth={4} />
-                                </div>
-                              </button>
-                            );
-                          })}
-
-                          {/* Other registered users section */}
-                          {filteredOtherUsers.length > 0 && (
-                            <>
-                              <div className="text-[9px] uppercase font-bold tracking-wider text-theme-muted px-2 pt-2 border-t border-theme-border/30">Other Registered Users</div>
-                              {filteredOtherUsers.map(invitee => {
-                                const isChecked = selectedUsers.includes(invitee.username);
-                                const handleToggle = () => {
-                                  setSelectedUsers(prev => isChecked ? prev.filter(u => u !== invitee.username) : [...prev, invitee.username]);
-                                };
-                                return (
-                                  <button
-                                    key={invitee.id}
-                                    type="button"
-                                    onClick={handleToggle}
-                                    className={`flex items-center justify-between p-2 rounded-lg text-left cursor-pointer transition-colors ${
-                                      isChecked ? 'bg-indigo-500/10 text-indigo-300 font-semibold' : 'hover:bg-white/5 text-theme-text'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                      <Avatar user={invitee} className="w-6 h-6 shrink-0" />
-                                      <div className="truncate text-xs font-bold">{invitee.displayName || invitee.username}</div>
-                                    </div>
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                                      isChecked ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-500 text-transparent'
-                                    }`}>
-                                      <Plus size={10} strokeWidth={4} />
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex justify-end gap-3 mt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreateGroup(false);
-                          setGroupName('');
-                          setSelectedUsers([]);
-                          setMemberSearchQuery('');
-                        }}
-                        className="px-4 py-2 text-xs font-bold rounded-xl bg-theme-bg border border-theme-border hover:bg-white/5 transition-colors cursor-pointer text-theme-text"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={!groupName.trim() || selectedUsers.length === 0}
-                        className="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer shadow-md shadow-indigo-600/10 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Create Group
-                      </button>
-                    </div>
-                  </form>
-                </motion.div>
-              </div>
+              <CreateGroupModal
+                isOpen={showCreateGroup}
+                onClose={() => setShowCreateGroup(false)}
+                token={token}
+                currentUser={currentUser!}
+                chats={chats}
+                openChat={openChat}
+                loadChats={loadChats}
+                showAlert={showAlert}
+              />
             )}
           </AnimatePresence>
+
           <AnimatePresence>
             {showGroupSettings && (
-              <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-sans select-none">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-lg bg-theme-panel border border-theme-border rounded-[28px] shadow-2xl p-6 relative flex flex-col h-[560px] text-left text-theme-text"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between border-b border-theme-border pb-4 shrink-0">
-                    <div className="flex items-center gap-3 text-indigo-400 font-bold text-lg">
-                      <Users size={20} />
-                      <span>Group Settings</span>
-                    </div>
-                    <button
-                      onClick={() => setShowGroupSettings(null)}
-                      className="w-8 h-8 rounded-full bg-theme-bg/5 hover:bg-theme-bg/10 text-theme-muted hover:text-theme-text transition-all flex items-center justify-center cursor-pointer"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="flex-1 overflow-y-auto py-4 space-y-5 scrollbar-hide">
-                    {/* Name and Icon section */}
-                    <div className="flex gap-4 items-center">
-                      <div 
-                        className="relative group cursor-pointer shrink-0" 
-                        onClick={() => groupIconInputRef.current?.click()}
-                      >
-                        <Avatar user={{ displayName: groupSettingsName, avatar: groupSettingsAvatar, username: showGroupSettings.username, isGroup: true }} className="w-16 h-16 rounded-[30%] border border-white/10" />
-                        <div className="absolute inset-0 bg-black/65 rounded-[30%] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <Camera size={18} className="text-white" />
-                        </div>
-                        <input
-                          type="file"
-                          ref={groupIconInputRef}
-                          onChange={handleGroupIconChange}
-                          accept="image/*"
-                          className="hidden"
-                        />
-                      </div>
-                      
-                      <div className="flex-1 flex gap-2 items-end">
-                        <div className="flex-1">
-                          <label className="text-[10px] text-theme-muted uppercase font-bold tracking-wider block mb-1">Group Name</label>
-                          <input
-                            type="text"
-                            value={groupSettingsName}
-                            onChange={e => setGroupSettingsName(e.target.value)}
-                            placeholder="Enter group name..."
-                            className="w-full bg-black/20 border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-text focus:outline-none focus:border-indigo-500/50 transition-colors"
-                          />
-                        </div>
-                        
-                        {(groupSettingsName.trim() !== showGroupSettings.displayName || groupSettingsAvatar !== showGroupSettings.avatar) && (
-                          <button
-                            type="button"
-                            onClick={handleSaveGroupSettings}
-                            disabled={!groupSettingsName.trim()}
-                            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer uppercase tracking-wider"
-                          >
-                            Save
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Members list section */}
-                    <div>
-                      <h4 className="text-[10px] text-theme-muted uppercase font-bold tracking-wider mb-2">Members ({showGroupSettings.participants?.length})</h4>
-                      <div className="max-h-[140px] overflow-y-auto border border-theme-border rounded-xl p-2 bg-black/10 flex flex-col gap-1.5 scrollbar-hide">
-                        {getGroupMembers(showGroupSettings.participants || []).map(member => {
-                          const isMe = member.username === currentUser?.username;
-                          return (
-                            <div key={member.username} className="flex items-center justify-between p-1.5 rounded-lg bg-white/2 hover:bg-white/5 transition-colors">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Avatar user={member} className="w-6 h-6 shrink-0" />
-                                <div className="truncate text-xs font-bold">{member.displayName || member.username} {isMe && <span className="text-[9px] text-indigo-400 font-normal ml-1">(You)</span>}</div>
-                              </div>
-                              
-                              {!isMe && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveGroupMember(showGroupSettings.username, member.username)}
-                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500 text-rose-455 hover:text-white border border-rose-500/20 transition-all cursor-pointer"
-                                >
-                                  Remove
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Add Members section */}
-                    <div>
-                      <h4 className="text-[10px] text-theme-muted uppercase font-bold tracking-wider mb-2">Add Members</h4>
-                      <div className="flex flex-col gap-2">
-                        <input
-                          type="text"
-                          value={groupSettingsSearch}
-                          onChange={e => setGroupSettingsSearch(e.target.value)}
-                          placeholder="Search users to add..."
-                          className="w-full bg-black/20 border border-theme-border rounded-xl px-4 py-2 text-xs text-theme-text focus:outline-none focus:border-indigo-500/50 transition-colors"
-                        />
-                        
-                        <div className="max-h-[140px] overflow-y-auto border border-theme-border rounded-xl p-2 bg-black/10 flex flex-col gap-1.5 scrollbar-hide">
-                          {(() => {
-                            const query = groupSettingsSearch.toLowerCase().trim();
-                            const activeFiltered = availableToAdd.filter(u => u.username.toLowerCase().includes(query) || u.displayName.toLowerCase().includes(query));
-                            const otherFiltered = query ? otherToAdd.filter(u => u.username.toLowerCase().includes(query) || u.displayName.toLowerCase().includes(query)) : [];
-                            
-                            if (activeFiltered.length === 0 && otherFiltered.length === 0) {
-                              return <p className="text-xs text-theme-muted italic text-center py-2">No users available to add.</p>;
-                            }
-                            
-                            return (
-                              <>
-                                {activeFiltered.map(user => (
-                                  <div key={user.username} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <Avatar user={user} className="w-6 h-6 shrink-0" />
-                                      <div className="truncate text-xs font-bold">{user.displayName || user.username}</div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddGroupMembers(showGroupSettings.username, [user.username])}
-                                      className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer uppercase tracking-wider"
-                                    >
-                                      Add
-                                    </button>
-                                  </div>
-                                ))}
-                                
-                                {otherFiltered.length > 0 && (
-                                  <>
-                                    <div className="text-[9px] uppercase font-bold tracking-wider text-theme-muted px-2 pt-2 border-t border-theme-border/30">Other Registered Users</div>
-                                    {otherFiltered.map(user => (
-                                      <div key={user.username} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <Avatar user={user} className="w-6 h-6 shrink-0" />
-                                          <div className="truncate text-xs font-bold">{user.displayName || user.username}</div>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleAddGroupMembers(showGroupSettings.username, [user.username])}
-                                          className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer uppercase tracking-wider"
-                                        >
-                                          Add
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer buttons */}
-                  <div className="border-t border-theme-border pt-4 mt-2 flex justify-between items-center shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleLeaveGroup(showGroupSettings.username)}
-                      className="px-4 py-2 rounded-xl border border-amber-500/20 hover:bg-amber-500 text-amber-500 hover:text-black font-bold text-xs transition-all cursor-pointer uppercase tracking-wider"
-                    >
-                      Leave Group
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteGroup(showGroupSettings.username)}
-                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors cursor-pointer uppercase tracking-wider"
-                    >
-                      Delete Group
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
+              <GroupSettingsModal
+                isOpen={!!showGroupSettings}
+                group={showGroupSettings}
+                onClose={() => setShowGroupSettings(null)}
+                currentUser={currentUser!}
+                chats={chats}
+                onUpdateGroupMetadata={handleUpdateGroupMetadata}
+                onAddGroupMembers={handleAddGroupMembers}
+                onRemoveGroupMember={handleRemoveGroupMember}
+                onLeaveGroup={handleLeaveGroup}
+                onDeleteGroup={handleDeleteGroup}
+              />
             )}
           </AnimatePresence>
 
-          {/* In-Page Custom Confirmation & Alert Dialog Modal */}
           <AnimatePresence>
             {inPageDialog.isOpen && (
-              <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm font-sans select-none animate-fade-in">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full max-w-sm bg-theme-panel border border-theme-border rounded-[24px] shadow-2xl p-6 relative flex flex-col gap-4 text-left text-theme-text"
-                >
-                  <div className="flex items-center gap-3 text-indigo-400 font-bold text-lg">
-                    {inPageDialog.type === 'confirm' ? (
-                      <AlertTriangle className="text-amber-500 animate-pulse" size={20} />
-                    ) : (
-                      <AlertTriangle className="text-indigo-400" size={20} />
-                    )}
-                    <span>{inPageDialog.title}</span>
-                  </div>
-                  
-                  <p className="text-sm text-theme-muted leading-relaxed select-text">
-                    {inPageDialog.message}
-                  </p>
-                  
-                  <div className="flex justify-end gap-3 mt-2">
-                    {inPageDialog.type === 'confirm' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInPageDialog(prev => ({ ...prev, isOpen: false }));
-                          if (inPageDialog.onCancel) {
-                            inPageDialog.onCancel();
-                          }
-                        }}
-                        className="px-4 py-2 text-xs font-bold rounded-xl bg-theme-bg border border-theme-border hover:bg-white/5 transition-colors cursor-pointer text-theme-text"
-                      >
-                        {inPageDialog.cancelText || 'Cancel'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setInPageDialog(prev => ({ ...prev, isOpen: false }));
-                        if (inPageDialog.onConfirm) {
-                          await inPageDialog.onConfirm();
-                        }
-                      }}
-                      className={`px-4 py-2 text-xs font-bold rounded-xl text-white transition-colors cursor-pointer shadow-md uppercase tracking-wider ${
-                        inPageDialog.type === 'confirm' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/10' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10'
-                      }`}
-                    >
-                      {inPageDialog.confirmText || (inPageDialog.type === 'confirm' ? 'Confirm' : 'OK')}
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
+              <InPageDialogModal
+                isOpen={inPageDialog.isOpen}
+                type={inPageDialog.type}
+                title={inPageDialog.title}
+                message={inPageDialog.message}
+                confirmText={inPageDialog.confirmText}
+                cancelText={inPageDialog.cancelText}
+                onConfirm={inPageDialog.onConfirm || (() => {})}
+                onCancel={inPageDialog.onCancel}
+              />
             )}
           </AnimatePresence>
         </motion.div>
