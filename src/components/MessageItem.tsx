@@ -400,25 +400,25 @@ interface MessageItemProps {
   message: Message;
   isMine: boolean;
   peer: User;
-  onDelete?: () => void;
+  onDelete?: (messageId: string) => void;
   onViewProfile?: (user: User | string) => void;
-  onReact?: (reaction: string) => void;
+  onReact?: (messageId: string, reaction: string) => void;
   currentUser: User;
   isSelectionMode?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: () => void;
-  onReply?: () => void;
+  onToggleSelect?: (messageId: string) => void;
+  onReply?: (message: Message) => void;
   isGroupedWithPrevious?: boolean;
   isGroupedWithNext?: boolean;
   isHighlighted?: boolean;
-  onPin?: () => void;
+  onPin?: (messageId: string) => void;
   onEdit?: (messageId: string, text: string) => void | Promise<void>;
   onEditEnd?: () => void;
   theme?: string;
   onShowAlert?: (title: string, message: string) => void;
 }
 
-export function MessageItem({ 
+export const MessageItem = React.memo(function MessageItem({ 
   message, 
   isMine, 
   peer, 
@@ -597,7 +597,7 @@ export function MessageItem({
     <motion.div
       layout
       id={`msg-${message.id}`}
-      onClick={isSelectionMode ? onToggleSelect : undefined}
+      onClick={isSelectionMode ? () => onToggleSelect?.(message.id) : undefined}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -633,7 +633,7 @@ export function MessageItem({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onToggleSelect?.();
+            onToggleSelect?.(message.id);
           }}
           className={`w-5 h-5 rounded-full border transition-colors flex items-center justify-center cursor-pointer ${
             isSelected
@@ -705,7 +705,7 @@ export function MessageItem({
                 icon.style.transform = 'scale(0.8) translateX(-10px)';
               }
               if (info.offset.x > 50 && onReply) {
-                onReply();
+                onReply(message);
                 if ('vibrate' in navigator) {
                   try { navigator.vibrate(15); } catch(e){}
                 }
@@ -734,7 +734,7 @@ export function MessageItem({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onReply?.();
+                onReply?.(message);
               }}
               className="w-7 h-7 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
               title="Reply"
@@ -746,7 +746,7 @@ export function MessageItem({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPin();
+                  onPin(message.id);
                 }}
                 className={`w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors ${
                   message.pinned ? 'text-indigo-400 hover:text-indigo-300' : 'text-theme-muted hover:text-indigo-400'
@@ -774,7 +774,7 @@ export function MessageItem({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete();
+                  onDelete(message.id);
                 }}
                 className="w-7 h-7 rounded-lg hover:bg-white/10 text-theme-muted hover:text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
                 title="Delete message"
@@ -970,7 +970,7 @@ export function MessageItem({
                 {['👍', '❤️', '😂', '🔥', '🎉', '😢'].map((emoji) => (
                   <button
                     key={emoji}
-                    onClick={() => onReact(emoji)}
+                    onClick={() => onReact?.(message.id, emoji)}
                     className="w-6 h-6 flex items-center justify-center text-xs rounded-full hover:bg-white/10 transition-colors cursor-pointer hover:scale-115 active:scale-95 duration-100"
                   >
                     {emoji}
@@ -1102,7 +1102,7 @@ export function MessageItem({
               return (
                 <button
                   key={reaction}
-                  onClick={() => onReact?.(reaction)}
+                  onClick={() => onReact?.(message.id, reaction)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
                     hasReacted
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200 shadow-md shadow-indigo-500/5'
@@ -1149,7 +1149,7 @@ export function MessageItem({
                         onClick={(e) => {
                           e.stopPropagation();
                           setShowLongPressMenu(false);
-                          onReact(emoji);
+                          onReact(message.id, emoji);
                         }}
                         className="w-7 h-7 flex items-center justify-center text-sm rounded-full hover:bg-white/10 active:bg-white/20 transition-all cursor-pointer hover:scale-115 active:scale-95 duration-100"
                       >
@@ -1166,7 +1166,7 @@ export function MessageItem({
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowLongPressMenu(false);
-                      onReply?.();
+                      onReply?.(message);
                     }}
                     className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-indigo-400 flex items-center justify-center cursor-pointer transition-colors"
                     title="Reply"
@@ -1197,7 +1197,7 @@ export function MessageItem({
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowLongPressMenu(false);
-                        onPin();
+                        onPin(message.id);
                       }}
                       className={`w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors ${
                         message.pinned ? 'text-indigo-400' : 'text-theme-muted hover:text-indigo-400'
@@ -1234,7 +1234,7 @@ export function MessageItem({
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowLongPressMenu(false);
-                        onDelete();
+                        onDelete(message.id);
                       }}
                       className="w-8 h-8 rounded-lg hover:bg-white/10 text-theme-muted hover:text-rose-500 flex items-center justify-center cursor-pointer transition-colors"
                       title="Delete"
@@ -1305,4 +1305,4 @@ export function MessageItem({
 
     </motion.div>
   );
-}
+});

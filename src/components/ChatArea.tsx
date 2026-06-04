@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, ArrowLeft, MoreVertical, Download, VolumeX, Ban, Volume2, ShieldAlert, X, Copy, Trash2, CheckSquare, Palette, Search, Pin, Camera, Users } from 'lucide-react';
@@ -94,6 +94,28 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
     setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(60);
+
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [chat?.id]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollTop === 0 && chat && visibleCount < chat.messages.length) {
+      const prevScrollHeight = target.scrollHeight;
+      
+      setVisibleCount((prev) => Math.min(prev + 60, chat.messages.length));
+      
+      requestAnimationFrame(() => {
+        if (target) {
+          const newScrollHeight = target.scrollHeight;
+          target.scrollTop = newScrollHeight - prevScrollHeight;
+        }
+      });
+    }
+  }, [chat, visibleCount]);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -215,7 +237,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
 
   const isSelectionMode = selectionModeEnabled || selectedMessageIds.size > 0;
 
-  const handleToggleSelect = (messageId: string) => {
+  const handleToggleSelect = useCallback((messageId: string) => {
     setSelectedMessageIds((prev) => {
       const next = new Set(prev);
       if (next.has(messageId)) {
@@ -225,7 +247,40 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
       }
       return next;
     });
-  };
+  }, []);
+
+  const handleDeleteMessageItem = useCallback((messageId: string) => {
+    if (onDeleteMessage && chat) {
+      onDeleteMessage(chat.id, messageId);
+      focusComposer();
+    }
+  }, [chat?.id, onDeleteMessage]);
+
+  const handleEditMessageItem = useCallback((messageId: string, text: string) => {
+    if (onEditMessage && chat) {
+      return onEditMessage(chat.id, messageId, text);
+    }
+  }, [chat?.id, onEditMessage]);
+
+  const handleReactMessageItem = useCallback((messageId: string, reaction: string) => {
+    onReact?.(messageId, reaction);
+  }, [onReact]);
+
+  const handleReplyMessageItem = useCallback((msg: Message) => {
+    setReplyToMessage(msg);
+    focusComposer();
+  }, [focusComposer]);
+
+  const handlePinMessageItem = useCallback((messageId: string) => {
+    if (onTogglePin && chat) {
+      onTogglePin(chat.id, messageId);
+      focusComposer();
+    }
+  }, [chat?.id, onTogglePin]);
+
+  const handleEditEndMessageItem = useCallback(() => {
+    focusComposer();
+  }, []);
 
   const handleClearSelection = () => {
     setSelectedMessageIds(new Set());
@@ -631,12 +686,14 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
           {/* Messages Area */}
           <div 
             ref={scrollRef}
+            onScroll={handleScroll}
             className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-8 py-8 flex flex-col gap-2 relative z-0 scrollbar-hide"
           >
             <AnimatePresence initial={false} mode="popLayout">
-              {chat.messages.map((message, index) => {
-                const prevMessage = index > 0 ? chat.messages[index - 1] : null;
-                const nextMessage = index < chat.messages.length - 1 ? chat.messages[index + 1] : null;
+              {chat.messages.slice(-visibleCount).map((message, index) => {
+                const visibleIndex = chat.messages.length - chat.messages.slice(-visibleCount).length + index;
+                const prevMessage = visibleIndex > 0 ? chat.messages[visibleIndex - 1] : null;
+                const nextMessage = visibleIndex < chat.messages.length - 1 ? chat.messages[visibleIndex + 1] : null;
 
                 const isGroupedWithPrevious = !!(
                   prevMessage &&
@@ -656,32 +713,21 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     message={message}
                     isMine={message.authorId === currentUser.id}
                     peer={chat.peer}
-                    onDelete={onDeleteMessage ? () => {
-                      onDeleteMessage(chat.id, message.id);
-                      focusComposer();
-                    } : undefined}
-                    onEdit={onEditMessage ? (messageId, text) => onEditMessage(chat.id, messageId, text) : undefined}
-                    onEditEnd={() => {
-                      focusComposer();
-                    }}
+                    onDelete={handleDeleteMessageItem}
+                    onEdit={handleEditMessageItem}
+                    onEditEnd={handleEditEndMessageItem}
                     onViewProfile={onViewProfile}
-                    onReact={(reaction) => onReact?.(message.id, reaction)}
+                    onReact={handleReactMessageItem}
                     currentUser={currentUser}
                     theme={theme}
                     isSelectionMode={isSelectionMode}
                     isSelected={selectedMessageIds.has(message.id)}
-                    onToggleSelect={() => handleToggleSelect(message.id)}
-                    onReply={() => {
-                      setReplyToMessage(message);
-                      focusComposer();
-                    }}
+                    onToggleSelect={handleToggleSelect}
+                    onReply={handleReplyMessageItem}
                     isGroupedWithPrevious={isGroupedWithPrevious}
                     isGroupedWithNext={isGroupedWithNext}
                     isHighlighted={message.id === highlightedMessageId}
-                    onPin={onTogglePin ? () => {
-                      onTogglePin(chat.id, message.id);
-                      focusComposer();
-                    } : undefined}
+                    onPin={handlePinMessageItem}
                     onShowAlert={onShowAlert}
                   />
                 );
