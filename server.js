@@ -1774,6 +1774,49 @@ async function handleApi(request, response, requestUrl) {
     return;
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/read") {
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
+
+    if (!peerUsername) {
+      sendJson(response, 400, { error: "Chat peer is required." });
+      return;
+    }
+
+    const conversationId = isGroup ? peerUsername : [user.username, peerUsername].sort().join("__");
+
+    // Persist the read state in the database
+    const conversationObj = db.conversations[conversationId];
+    if (conversationObj) {
+      conversationObj.readStates = conversationObj.readStates || {};
+      conversationObj.readStates[user.username] = new Date().toISOString();
+      await saveDb();
+    }
+
+    const payload = {
+      event: "read",
+      conversationId,
+      username: user.username
+    };
+
+    if (isGroup) {
+      const conversation = db.conversations[peerUsername];
+      if (conversation && conversation.participants.includes(user.username)) {
+        for (const participant of conversation.participants) {
+          if (participant !== user.username) {
+            sendEvent(participant, payload);
+          }
+        }
+      }
+    } else {
+      sendEvent(peerUsername, payload);
+    }
+
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/edit-message") {
     const rawWith = String(postBody.with || "").trim();
     const isGroup = rawWith.startsWith("group__");

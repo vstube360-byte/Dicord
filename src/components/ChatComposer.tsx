@@ -12,6 +12,8 @@ interface ComposerProps {
   mentionableUsers?: User[];
   onShowAlert?: (title: string, message: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
+  isTyping?: boolean;
+  typingName?: string;
 }
 
 function formatBytes(bytes: number) {
@@ -172,7 +174,17 @@ const getFallbackGifs = (query: string): string[] => {
   return FALLBACK_GIFS.trending;
 };
 
-export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef, mentionableUsers = [], onShowAlert, onTypingChange }: ComposerProps) {
+export function ChatComposer({ 
+  onSend, 
+  replyToMessage = null, 
+  onCancelReply, 
+  inputRef, 
+  mentionableUsers = [], 
+  onShowAlert, 
+  onTypingChange,
+  isTyping = false,
+  typingName = 'Someone'
+}: ComposerProps) {
   const [text, setText] = useState('');
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -249,9 +261,26 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
     }
   }, [text]);
 
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('dicord-recent-emojis');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [showEmojis, setShowEmojis] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('smileys');
+  const [activeCategory, setActiveCategory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dicord-recent-emojis');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return parsed.length > 0 ? 'recent' : 'smileys';
+    } catch (e) {
+      return 'smileys';
+    }
+  });
 
   const [resolvedEmbeds, setResolvedEmbeds] = useState<any[]>([]);
   const [ignoredUrls, setIgnoredUrls] = useState<string[]>([]);
@@ -630,6 +659,14 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
   const handleEmojiClick = (emoji: string) => {
     const nextText = text + emoji;
     setText(nextText);
+    
+    setRecentEmojis((prev) => {
+      const filtered = prev.filter((e) => e !== emoji);
+      const next = [emoji, ...filtered].slice(0, 28);
+      localStorage.setItem('dicord-recent-emojis', JSON.stringify(next));
+      return next;
+    });
+
     textareaRef.current?.focus();
     handleInputChange(nextText);
   };
@@ -641,8 +678,47 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
     textareaRef.current?.focus();
   };
 
+  const allCategories = [
+    ...(recentEmojis.length > 0 ? [{ id: 'recent', name: 'Recently Used', icon: '🕒', emojis: recentEmojis }] : []),
+    ...EMOJI_CATEGORIES
+  ];
+
   return (
     <div className={`px-8 py-3 flex flex-col justify-center bg-transparent shrink-0 relative w-full ${showEmojis || showGifPicker || resolvedEmbeds.length > 0 ? 'z-40' : 'z-20'}`}>
+      {/* Typing Indicator Overlay (positioned overlay, zero layout height) */}
+      <AnimatePresence>
+        {isTyping && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+            className="absolute bottom-full mb-1.5 left-10 z-30 flex items-center select-none"
+          >
+            <div className="flex items-center gap-1.5 bg-theme-panel/95 backdrop-blur-md border border-theme-border/60 rounded-full px-3 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0" />
+              <span className="font-extrabold text-[11px] text-indigo-400">@{typingName}</span>
+              <span className="text-[10px] text-theme-muted font-medium italic">is typing</span>
+              <div className="flex pb-0.5 gap-0.5 items-center">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-1 h-1 bg-indigo-400/80 rounded-full"
+                    animate={{ y: [0, -1.5, 0] }}
+                    transition={{
+                      duration: 0.6,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: i * 0.12,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showEmojis && (
           <motion.div
@@ -654,7 +730,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
           >
             {/* Header: Categories */}
             <div className="flex items-center justify-between border-b border-theme-border pb-2 mb-2 gap-1">
-              {EMOJI_CATEGORIES.map((cat) => (
+              {allCategories.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -676,7 +752,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
 
             {/* Body: Emojis Grid */}
             <div className="grid grid-cols-7 gap-1 overflow-y-auto max-h-[180px] pr-1 scrollbar-hide">
-              {EMOJI_CATEGORIES.find((cat) => cat.id === activeCategory)?.emojis.map((emoji) => (
+              {allCategories.find((cat) => cat.id === activeCategory)?.emojis.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"

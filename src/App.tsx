@@ -33,6 +33,7 @@ import {
   leaveGroup,
   deleteGroup,
   sendTypingStatus,
+  sendReadReceipt,
 } from './lib/api';
 
 const TOKEN_KEY = 'dicord-token';
@@ -198,6 +199,9 @@ export default function App() {
       
       let messages = existing?.messages || [];
       if (message) {
+        if (message.authorId !== currentUser.username) {
+          messages = messages.map(m => m.authorId === currentUser.username ? { ...m, seen: true } : m);
+        }
         const existsIndex = messages.findIndex((entry) => entry.id === message.id);
         if (existsIndex >= 0) {
           messages = messages.map((entry) => entry.id === message.id ? message : entry);
@@ -319,6 +323,28 @@ export default function App() {
   }, [showGroupSettings]);
 
   useEffect(() => {
+    const handleFocus = async () => {
+      if (!token || !activeChatId) return;
+      if (document.hasFocus() && document.visibilityState === 'visible') {
+        try {
+          await sendReadReceipt(token, activeChatId);
+        } catch (err) {
+          console.error('Failed to send read receipt on focus:', err);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    handleFocus();
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [token, activeChatId]);
+
+  useEffect(() => {
     if (!token || !currentUser) {
       return;
     }
@@ -326,6 +352,24 @@ export default function App() {
     const source = new EventSource(`/api/stream?token=${encodeURIComponent(token)}`);
     source.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.event === 'read' && data.conversationId && data.username) {
+        setChats((prev) =>
+          prev.map((chat) => {
+            const expectedId = chat.peer.isGroup ? chat.peer.username : [currentUser.username, chat.peer.username].sort().join("__");
+            if (expectedId === data.conversationId) {
+              if (data.username !== currentUser.username) {
+                return {
+                  ...chat,
+                  messages: chat.messages.map(m => m.authorId === currentUser.username ? { ...m, seen: true } : m)
+                };
+              }
+            }
+            return chat;
+          })
+        );
+        return;
+      }
 
       if (data.event === 'typing' && data.conversationId && data.username) {
         setChats((prev) =>
@@ -345,6 +389,9 @@ export default function App() {
                 return {
                   ...chat,
                   isTyping: typingVal,
+                  messages: data.isTyping
+                    ? chat.messages.map(m => m.authorId === currentUser.username ? { ...m, seen: true } : m)
+                    : chat.messages
                 };
               }
             }
@@ -468,6 +515,18 @@ export default function App() {
 
       const message = toClientMessage(data.message);
       const peer = toClientUser(data.peer);
+
+      // Send read receipt if we are actively viewing this conversation and tab is focused
+      if (data.conversationId === activeConversationIdRef.current && document.hasFocus() && document.visibilityState === 'visible') {
+        if (message.authorId !== currentUser.username) {
+          try {
+            sendReadReceipt(token, peer.username);
+          } catch (err) {
+            console.error('Failed to send read receipt for incoming message:', err);
+          }
+        }
+      }
+
       upsertChat(peer, message);
 
       // Play chime if mentioned by another user
@@ -510,6 +569,10 @@ export default function App() {
             }
             
             let messages = chat.messages;
+            // If the incoming message is from the peer, they must have seen our messages.
+            if (message.authorId !== currentUser.username) {
+              messages = messages.map(m => m.authorId === currentUser.username ? { ...m, seen: true } : m);
+            }
             const existsIndex = messages.findIndex((entry) => entry.id === message.id);
             if (existsIndex >= 0) {
               messages = messages.map((entry) => entry.id === message.id ? message : entry);
@@ -571,12 +634,42 @@ export default function App() {
       setActiveChatId(peer.username);
       setActiveConversationId(conversation.conversationId);
       setSidebarOpen(false);
+
+      // Notify peer that we've read their messages
+      if (document.hasFocus() && document.visibilityState === 'visible') {
+        try {
+          await sendReadReceipt(token, peer.username);
+        } catch (err) {
+          console.error('Failed to send read receipt:', err);
+        }
+      }
+
       setChats((prev) => {
         const index = prev.findIndex((chat) => chat.peer.username === peer.username);
+        const messages = conversation.messages.map(m => {
+          if (m.authorId === currentUser?.username) {
+            let seen = !!m.seen;
+            if (!seen && conversation.readStates) {
+              if (peer.isGroup) {
+                const otherParticipants = peer.participants?.filter(p => p !== currentUser?.username) || [];
+                seen = otherParticipants.some(p => {
+                  const readTimeStr = conversation.readStates?.[p];
+                  return readTimeStr && m.createdAt <= new Date(readTimeStr).getTime();
+                });
+              } else {
+                const readTimeStr = conversation.readStates[peer.username];
+                seen = !!readTimeStr && m.createdAt <= new Date(readTimeStr).getTime();
+              }
+            }
+            return { ...m, seen };
+          }
+          return m;
+        });
+
         const nextChat: ChatSession = {
           id: peer.username,
           peer: conversation.peer,
-          messages: conversation.messages,
+          messages,
           unreadCount: 0,
         };
         if (index === -1) {
@@ -587,7 +680,7 @@ export default function App() {
         return next;
       });
     },
-    [token]
+    [token, currentUser]
   );
 
   const handleNewChat = useCallback(

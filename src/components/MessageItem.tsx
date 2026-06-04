@@ -530,6 +530,12 @@ export function MessageItem({
     setEditText(message.text);
   }, [message.text]);
 
+  const isSeen = React.useMemo(() => {
+    if (!isMine) return true;
+    if (message.pending) return false;
+    return !!message.seen;
+  }, [isMine, message.pending, message.seen]);
+
   const cancelEdit = () => {
     setIsEditing(false);
     setEditText(message.text);
@@ -652,14 +658,61 @@ export function MessageItem({
                 e.stopPropagation();
                 onViewProfile?.(senderUser);
               }}
-              className="cursor-pointer group hover:scale-105 transition-transform"
+              className="cursor-pointer group hover:scale-105 transition-transform hidden sm:flex shrink-0"
             >
-              <Avatar user={senderUser} className="w-8 h-8 hidden sm:flex shrink-0" />
+              <Avatar user={senderUser} className="w-8 h-8" />
             </button>
           )
         )}
       
-      <div className={`relative flex flex-col group ${isMine ? 'items-end max-w-[70%] sm:max-w-[75%]' : 'items-start max-w-full'}`}>
+      <div className={`flex flex-col ${isMine ? 'items-end ml-auto' : 'items-start'} max-w-full`}>
+        <div className="relative flex items-center w-full overflow-visible">
+          {/* Swipe Reply Icon */}
+          {!message.pending && onReply && (
+            <div 
+              className="absolute left-0 flex items-center justify-center text-indigo-400 pointer-events-none transition-all duration-75"
+              style={{ 
+                opacity: 0, 
+                transform: 'scale(0.8) translateX(-10px)',
+                width: '32px',
+                height: '32px'
+              }}
+              id={`swipe-reply-${message.id}`}
+            >
+              <div className="w-8 h-8 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                <Reply size={14} />
+              </div>
+            </div>
+          )}
+
+          <motion.div
+            drag={!message.pending && onReply ? "x" : false}
+            dragDirectionLock
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0, right: 0.6 }}
+            onDrag={(event, info) => {
+              const icon = document.getElementById(`swipe-reply-${message.id}`);
+              if (icon) {
+                const x = info.offset.x;
+                icon.style.opacity = String(Math.min(x / 40, 1));
+                icon.style.transform = `scale(${Math.min(0.8 + (x / 200), 1.1)}) translateX(${Math.min(x - 30, 0)}px)`;
+              }
+            }}
+            onDragEnd={(event, info) => {
+              const icon = document.getElementById(`swipe-reply-${message.id}`);
+              if (icon) {
+                icon.style.opacity = '0';
+                icon.style.transform = 'scale(0.8) translateX(-10px)';
+              }
+              if (info.offset.x > 50 && onReply) {
+                onReply();
+                if ('vibrate' in navigator) {
+                  try { navigator.vibrate(15); } catch(e){}
+                }
+              }
+            }}
+            className={`relative flex flex-col group ${isMine ? 'items-end ml-auto' : 'items-start'} max-w-full`}
+          >
         {/* Author Name for Group Chats */}
         {peer.isGroup && !isMine && !isGroupedWithPrevious && (
           <div className="flex items-center gap-1.5 text-[10px] text-theme-muted font-bold mb-1 ml-1 select-none">
@@ -787,8 +840,8 @@ export function MessageItem({
             }}
             className={`relative ${cornersClass} ${
               isMine
-                ? 'gradient-msg p-4 text-white leading-relaxed w-full'
-                : 'glass p-4 text-theme-text leading-relaxed shadow-sm'
+                ? `gradient-msg p-4 text-white leading-relaxed w-fit ${isEditing ? 'w-full sm:min-w-[380px]' : ''}`
+                : 'glass p-4 text-theme-text leading-relaxed shadow-sm w-fit'
             } ${message.pending ? 'opacity-50 saturate-50 cursor-not-allowed select-none' : ''}`}
           >
             {/* Render Caption / Message Text */}
@@ -1194,18 +1247,60 @@ export function MessageItem({
             </>
           )}
         </AnimatePresence>
+
+        </motion.div>
       </div>
 
       {isMine && !isGroupedWithNext && (
-         <div className="text-[10px] text-theme-muted mr-2 uppercase tracking-wide">
-           {timeString} · {message.pending ? 'Sending...' : 'Delivered'}
-         </div>
+        <div className="text-[10px] text-theme-muted mr-2 mt-1 uppercase tracking-wide flex items-center gap-1 justify-end select-none h-4 overflow-hidden">
+          <span>{timeString}</span>
+          <span>·</span>
+          {message.pending ? (
+            <span className="text-theme-muted/70">Sending...</span>
+          ) : (
+            <AnimatePresence mode="wait">
+              {isSeen ? (
+                <motion.span
+                  key="seen"
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                  className="text-indigo-400 font-semibold flex items-center gap-0.5"
+                >
+                  Seen
+                  <motion.span 
+                    initial={{ scale: 0.5, rotate: -15 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.08, type: 'spring', stiffness: 600, damping: 15 }}
+                    className="text-indigo-400 font-bold inline-block"
+                  >
+                    ✓✓
+                  </motion.span>
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="delivered"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-theme-muted/80 flex items-center gap-0.5"
+                >
+                  Delivered
+                  <span className="text-theme-muted/50 font-bold">✓</span>
+                </motion.span>
+              )}
+            </AnimatePresence>
+          )}
+        </div>
       )}
       {!isMine && !isGroupedWithNext && (
-         <div className="text-[10px] text-theme-muted ml-2 uppercase tracking-wide">
-           {timeString}
-         </div>
+        <div className="text-[10px] text-theme-muted ml-2 mt-1 uppercase tracking-wide select-none">
+          {timeString}
+        </div>
       )}
+
+      </div>
       </div>
 
     </motion.div>

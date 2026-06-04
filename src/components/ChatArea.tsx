@@ -347,7 +347,7 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
         behavior: 'smooth',
       });
     }
-  }, [chat?.messages, chat?.isTyping]);
+  }, [chat?.messages]);
 
   if (!chat) {
     return (
@@ -686,16 +686,10 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                   />
                 );
               })}
-              {chat.isTyping && (
-                <TypingIndicator
-                  key="typing"
-                  name={typeof chat.isTyping === 'string' ? chat.isTyping.split(' ')[0] : chat.peer.displayName.split(' ')[0]}
-                />
-              )}
             </AnimatePresence>
             
             {/* Spacer to prevent scroll issues */}
-            <div className="h-2 w-full shrink-0" />
+            <div className="h-10 w-full shrink-0" />
           </div>
 
           {/* Composer or Block Banner */}
@@ -722,6 +716,8 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                   onTypingChange(chat.peer.username, isTyping);
                 }
               }}
+              isTyping={!!chat.isTyping}
+              typingName={typeof chat.isTyping === 'string' ? chat.isTyping.split(' ')[0] : chat.peer.displayName.split(' ')[0]}
             />
           )}
         </div>

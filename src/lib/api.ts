@@ -56,6 +56,7 @@ export interface ConversationResponse {
   conversationId: string;
   peer: User;
   messages: Message[];
+  readStates?: Record<string, string>;
 }
 
 export function toClientUser(user: ServerUser): User {
@@ -161,7 +162,7 @@ export async function fetchChats(token: string): Promise<ChatSession[]> {
 
 export async function fetchConversation(token: string, username: string): Promise<ConversationResponse> {
   const data = await request<{
-    conversation: { id: string; messages: ServerMessage[] };
+    conversation: { id: string; messages: ServerMessage[]; readStates?: Record<string, string> };
     peer: ServerUser;
   }>(`/api/conversation?token=${encodeURIComponent(token)}&with=${encodeURIComponent(username)}`);
 
@@ -169,6 +170,7 @@ export async function fetchConversation(token: string, username: string): Promis
     conversationId: data.conversation.id,
     peer: toClientUser(data.peer),
     messages: data.conversation.messages.map(toClientMessage),
+    readStates: data.conversation.readStates,
   };
 }
 
@@ -375,6 +377,17 @@ export async function sendTypingStatus(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, with: peerUsername, isTyping }),
+  });
+}
+
+export async function sendReadReceipt(
+  token: string,
+  peerUsername: string
+): Promise<void> {
+  await request<{ ok: boolean }>('/api/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, with: peerUsername }),
   });
 }
 

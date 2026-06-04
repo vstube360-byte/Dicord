@@ -4,31 +4,26 @@ import { motion } from 'motion/react';
 export function TypingIndicator({ name = 'User' }: { name?: string }) {
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className="flex items-end space-x-3 max-w-[70%]"
+      initial={{ opacity: 0, y: 3 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 3, transition: { duration: 0.12 } }}
+      className="flex items-center text-[11px] text-theme-muted/75 italic select-none shrink-0 gap-1"
     >
-      <div className="w-8 h-8 rounded-full border border-theme-border shrink-0 hidden sm:block" />
-      <div className="glass py-2 px-4 rounded-2xl rounded-bl-none text-theme-muted text-sm italic flex items-center space-x-2 shadow-sm">
-        <span>{name} is typing</span>
-        <div className="flex pb-1 gap-0.5">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              className="typing-dot"
-              animate={{ y: [0, -3, 0] }}
-              transition={{
-                duration: 0.6,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: i * 0.15,
-              }}
-            />
-          ))}
-        </div>
+      <span>{name} is typing</span>
+      <div className="flex pb-0.5 gap-0.5 items-center">
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="w-1 h-1 bg-theme-muted/50 rounded-full"
+            animate={{ y: [0, -1.5, 0] }}
+            transition={{
+              duration: 0.6,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.12,
+            }}
+          />
+        ))}
       </div>
     </motion.div>
   );

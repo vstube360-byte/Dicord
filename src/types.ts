@@ -42,6 +42,7 @@ export interface Message {
   pending?: boolean;
   pinned?: boolean;
   edited?: boolean;
+  seen?: boolean;
   embed?: {
     url: string;
     title: string;
