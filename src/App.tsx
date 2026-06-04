@@ -71,6 +71,13 @@ function playPingSound() {
   }
 }
 
+interface SavedAccount {
+  username: string;
+  displayName: string;
+  avatar: string;
+  token: string;
+}
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -87,6 +94,15 @@ export default function App() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showGroupSettings, setShowGroupSettings] = useState<User | null>(null);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>(() => {
+    try {
+      const raw = localStorage.getItem('dicord-saved-accounts');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [inPageDialog, setInPageDialog] = useState<{
     isOpen: boolean;
@@ -221,6 +237,21 @@ export default function App() {
       localStorage.setItem(TOKEN_KEY, result.token);
       setToken(result.token);
       setCurrentUser(result.user);
+      
+      setSavedAccounts((prev) => {
+        const newAccount: SavedAccount = {
+          username: result.user.username,
+          displayName: result.user.displayName,
+          avatar: result.user.avatar || '',
+          token: result.token
+        };
+        const filtered = prev.filter((acc) => acc.username !== result.user.username);
+        const next = [...filtered, newAccount];
+        localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+        return next;
+      });
+
+      setIsAddingAccount(false);
       await loadChats(result.token);
     },
     [loadChats]
@@ -235,10 +266,33 @@ export default function App() {
       .then(async (user) => {
         setCurrentUser(user);
         await loadChats(token);
+
+        // Auto-add/update current active user to the saved accounts list
+        setSavedAccounts((prev) => {
+          if (prev.some((acc) => acc.username === user.username && acc.token === token)) {
+            return prev;
+          }
+          const newAccount: SavedAccount = {
+            username: user.username,
+            displayName: user.displayName,
+            avatar: user.avatar || '',
+            token: token
+          };
+          const filtered = prev.filter((acc) => acc.username !== user.username);
+          const next = [...filtered, newAccount];
+          localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+          return next;
+        });
       })
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
         setToken('');
+        setCurrentUser(null);
+        setSavedAccounts((prev) => {
+          const next = prev.filter((acc) => acc.token !== token);
+          localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+          return next;
+        });
       });
   }, [token, loadChats]);
 
@@ -488,6 +542,22 @@ export default function App() {
       }
       const updated = await updateProfile(token, updates);
       setCurrentUser(updated);
+
+      // Sync display name and avatar updates to the saved accounts list
+      setSavedAccounts((prev) => {
+        const next = prev.map((acc) => {
+          if (acc.username === updated.username) {
+            return {
+              ...acc,
+              displayName: updated.displayName || acc.displayName,
+              avatar: updated.avatar || '',
+            };
+          }
+          return acc;
+        });
+        localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+        return next;
+      });
     },
     [currentUser, token]
   );
@@ -542,14 +612,55 @@ export default function App() {
     [chats, openChat, token, showAlert]
   );
 
+  const handleSwitchAccount = useCallback(
+    async (targetToken: string) => {
+      try {
+        const user = await fetchMe(targetToken);
+        localStorage.setItem(TOKEN_KEY, targetToken);
+        setToken(targetToken);
+        setCurrentUser(user);
+        setActiveChatId(null);
+        setActiveConversationId('');
+        await loadChats(targetToken);
+      } catch (err) {
+        showAlert('Switch Account Error', 'Failed to log in to the selected account. Please try logging in again.');
+        setSavedAccounts((prev) => {
+          const next = prev.filter((acc) => acc.token !== targetToken);
+          localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+          return next;
+        });
+      }
+    },
+    [loadChats, showAlert]
+  );
+
   const handleLogout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken('');
-    setCurrentUser(null);
-    setActiveChatId(null);
-    setActiveConversationId('');
-    setShowProfileSettings(false);
-    setChats([]);
+    if (!currentUser) return;
+    const currentUsername = currentUser.username;
+    
+    const remaining = savedAccounts.filter((acc) => acc.username !== currentUsername);
+    setSavedAccounts(remaining);
+    localStorage.setItem('dicord-saved-accounts', JSON.stringify(remaining));
+
+    if (remaining.length > 0) {
+      handleSwitchAccount(remaining[0].token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken('');
+      setCurrentUser(null);
+      setActiveChatId(null);
+      setActiveConversationId('');
+      setShowProfileSettings(false);
+      setChats([]);
+    }
+  }, [currentUser, savedAccounts, handleSwitchAccount]);
+
+  const handleRemoveAccount = useCallback((username: string) => {
+    setSavedAccounts((prev) => {
+      const next = prev.filter((acc) => acc.username !== username);
+      localStorage.setItem('dicord-saved-accounts', JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const handleDeleteAccount = useCallback(async () => {
@@ -590,7 +701,7 @@ export default function App() {
         }
       } else {
         if (userOrUsername.isGroup) {
-          setSelectedProfileUser(userOrUsername);
+          setShowGroupSettings(userOrUsername);
           return;
         }
         
@@ -885,7 +996,7 @@ export default function App() {
       );
 
       try {
-        await sendMessage(token, activeChatId, text, finalGifUrl, mediaUrl, mediaType, mediaSize, embeds, replyTo);
+        await sendMessage(token, activeChatId, text, finalGifUrl, mediaUrl, mediaType, mediaSize, embeds, replyTo, tempId);
       } catch (error) {
         // If failed, remove the optimistic message
         setChats((prev) =>
@@ -1033,10 +1144,14 @@ export default function App() {
     );
   }, [otherRegisteredUsers, memberSearchQuery]);
 
-  if (!currentUser) {
+  if (!currentUser || isAddingAccount) {
     return (
       <div className="h-screen w-screen overflow-hidden bg-theme-bg text-theme-text transition-colors relative selection:bg-indigo-500/30">
-        <AuthScreen onLogin={handleAuthenticate} theme={theme} />
+        <AuthScreen 
+          onLogin={handleAuthenticate} 
+          theme={theme} 
+          onCancel={isAddingAccount ? () => setIsAddingAccount(false) : undefined}
+        />
       </div>
     );
   }
@@ -1077,6 +1192,10 @@ export default function App() {
               onNewChat={handleNewChat}
               onViewProfile={handleViewProfile}
               onShowCreateGroup={() => setShowCreateGroup(true)}
+              savedAccounts={savedAccounts}
+              onSwitchAccount={handleSwitchAccount}
+              onAddAccount={() => setIsAddingAccount(true)}
+              onRemoveAccount={handleRemoveAccount}
             />
           </div>
 
@@ -1109,7 +1228,6 @@ export default function App() {
               user={currentUser}
               onUpdate={handleUpdateProfile}
               onClose={() => setShowProfileSettings(false)}
-              onDeleteAccount={handleDeleteAccount}
               theme={theme}
               onThemeChange={handleThemeChange}
             />
@@ -1335,8 +1453,8 @@ export default function App() {
                         className="relative group cursor-pointer shrink-0" 
                         onClick={() => groupIconInputRef.current?.click()}
                       >
-                        <Avatar user={{ displayName: groupSettingsName, avatar: groupSettingsAvatar, username: showGroupSettings.username }} className="w-16 h-16 rounded-full border border-white/10" />
-                        <div className="absolute inset-0 bg-black/65 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Avatar user={{ displayName: groupSettingsName, avatar: groupSettingsAvatar, username: showGroupSettings.username, isGroup: true }} className="w-16 h-16 rounded-[30%] border border-white/10" />
+                        <div className="absolute inset-0 bg-black/65 rounded-[30%] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                           <Camera size={18} className="text-white" />
                         </div>
                         <input

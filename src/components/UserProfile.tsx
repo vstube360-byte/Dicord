@@ -74,12 +74,14 @@ export function UserProfile({ user, onClose }: UserProfileProps) {
                   user={user} 
                   className="w-24 h-24 text-2xl rounded-full border-4 border-theme-panel shadow-lg shadow-black/50" 
                 />
-                <div 
-                  className={`absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full border-2 border-theme-panel ${
-                    user.status === 'online' ? 'bg-green-500' : 'bg-slate-500'
-                  }`}
-                  title={user.status === 'online' ? 'Online' : 'Offline'}
-                />
+                {!user.isGroup && (
+                  <div 
+                    className={`absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full border-2 border-theme-panel ${
+                      user.status === 'online' ? 'bg-green-500' : 'bg-slate-500'
+                    }`}
+                    title={user.status === 'online' ? 'Online' : 'Offline'}
+                  />
+                )}
               </div>
 
               {/* Badges Area */}

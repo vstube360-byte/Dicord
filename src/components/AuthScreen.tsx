@@ -10,9 +10,10 @@ interface AuthScreenProps {
     isRegister: boolean
   ) => Promise<void>;
   theme?: string;
+  onCancel?: () => void;
 }
 
-export function AuthScreen({ onLogin, theme = 'dark' }: AuthScreenProps) {
+export function AuthScreen({ onLogin, theme = 'dark', onCancel }: AuthScreenProps) {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -370,6 +371,16 @@ export function AuthScreen({ onLogin, theme = 'dark' }: AuthScreenProps) {
               </svg>
               <span className="text-sm">Google</span>
             </button>
+            
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="w-full bg-transparent hover:bg-theme-bg/10 text-theme-muted hover:text-theme-text flex items-center justify-center gap-3 rounded-xl px-4 py-3.5 font-bold transition-all cursor-pointer border border-theme-border mt-3 text-sm"
+              >
+                Cancel / Go Back
+              </button>
+            )}
 
             <p className="text-center text-xs text-theme-muted min-h-4">{status}</p>
           </form>

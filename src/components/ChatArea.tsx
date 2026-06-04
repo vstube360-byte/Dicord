@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, ArrowLeft, MoreVertical, Download, VolumeX, Ban, Volume2, ShieldAlert, X, Copy, Trash2, CheckSquare, Palette, Search, Pin, Camera } from 'lucide-react';
+import { Menu, ArrowLeft, MoreVertical, Download, VolumeX, Ban, Volume2, ShieldAlert, X, Copy, Trash2, CheckSquare, Palette, Search, Pin, Camera, Users } from 'lucide-react';
 import { ChatSession, User, Message } from '../types';
 import { MessageItem } from './MessageItem';
 import { ChatComposer } from './ChatComposer';
@@ -445,12 +445,15 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
             >
               <div className="relative hidden sm:block">
                 <Avatar user={chat.peer} className="w-10 h-10 transition-transform group-hover:scale-105" />
-                {(chat.peer.status === 'online' || chat.isTyping) && ( 
+                {!chat.peer.isGroup && (chat.peer.status === 'online' || chat.isTyping) && ( 
                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0B0E14] rounded-full" />
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
+                  {chat.peer.isGroup && (
+                    <Users size={16} className="text-indigo-400 shrink-0" />
+                  )}
                   <h2 className="font-bold text-lg text-white truncate max-w-[200px] group-hover:text-indigo-300 transition-colors">
                     {chat.peer.displayName}
                   </h2>
@@ -462,14 +465,24 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                   )}
                 </div>
                 <div className="flex items-center text-xs font-medium mt-0.5">
-                  {chat.peer.status === 'online' || chat.isTyping ? (
+                  {chat.isTyping ? (
                     <>
-                      <div className={`w-1.5 h-1.5 bg-green-400 rounded-full mr-2 ${chat.isTyping ? 'animate-pulse' : ''}`}></div>
-                      <span className="text-green-400">
-                        {chat.isTyping 
-                          ? (typeof chat.isTyping === 'string' ? `${chat.isTyping} is typing...` : 'Typing...') 
-                          : 'Online'}
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-green-400 font-semibold">
+                        {typeof chat.isTyping === 'string' ? `${chat.isTyping} is typing...` : 'Typing...'}
                       </span>
+                    </>
+                  ) : chat.peer.isGroup ? (
+                    <>
+                      <div className="w-1.5 h-1.5 bg-indigo-400/80 rounded-full mr-2"></div>
+                      <span className="text-theme-muted">
+                        {chat.peer.participants ? `${chat.peer.participants.length} members` : 'Group'}
+                      </span>
+                    </>
+                  ) : chat.peer.status === 'online' ? (
+                    <>
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
+                      <span className="text-green-400">Online</span>
                     </>
                   ) : (
                     <>
@@ -809,9 +822,19 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     );
                   }
 
-                  return searchResults.map((message) => {
+                   return searchResults.map((message) => {
                     const isMessageAuthorMe = message.authorId === currentUser.username;
-                    const displayAuthor = isMessageAuthorMe ? currentUser : chat.peer;
+                    const displayAuthor = isMessageAuthorMe 
+                      ? currentUser 
+                      : (chat.peer.isGroup 
+                          ? { 
+                              id: message.authorId, 
+                              username: message.authorId, 
+                              displayName: message.authorName || message.authorId, 
+                              avatar: message.authorAvatar || '',
+                              isGroup: false 
+                            } 
+                          : chat.peer);
                     const dateFormatted = new Date(message.createdAt).toLocaleDateString([], {
                       month: 'short',
                       day: 'numeric',
@@ -897,9 +920,19 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                     );
                   }
 
-                  return pinnedMessages.map((message) => {
+                   return pinnedMessages.map((message) => {
                     const isMessageAuthorMe = message.authorId === currentUser.username;
-                    const displayAuthor = isMessageAuthorMe ? currentUser : chat.peer;
+                    const displayAuthor = isMessageAuthorMe 
+                      ? currentUser 
+                      : (chat.peer.isGroup 
+                          ? { 
+                              id: message.authorId, 
+                              username: message.authorId, 
+                              displayName: message.authorName || message.authorId, 
+                              avatar: message.authorAvatar || '',
+                              isGroup: false 
+                            } 
+                          : chat.peer);
                     const dateFormatted = new Date(message.createdAt).toLocaleDateString([], {
                       month: 'short',
                       day: 'numeric',

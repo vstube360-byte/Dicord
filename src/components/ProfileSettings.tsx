@@ -8,7 +8,6 @@ interface ProfileSettingsProps {
   user: User;
   onUpdate: (updates: Partial<User>) => void;
   onClose: () => void;
-  onDeleteAccount: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
 }
@@ -48,8 +47,8 @@ const PRESET_THEMES = [
   { id: 'violet', name: 'Violet Velvet', color: 'bg-violet-500' },
 ];
 
-export function ProfileSettings({ user, onUpdate, onClose, onDeleteAccount, theme: appTheme, onThemeChange }: ProfileSettingsProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'visuals' | 'privacy' | 'danger'>('profile');
+export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onThemeChange }: ProfileSettingsProps) {
+  const [activeTab, setActiveTab] = useState<'profile' | 'visuals' | 'privacy'>('profile');
   
   // Profile inputs
   const [displayName, setDisplayName] = useState(user.displayName);
@@ -189,17 +188,6 @@ export function ProfileSettings({ user, onUpdate, onClose, onDeleteAccount, them
               >
                 <Shield size={14} />
                 <span>Privacy</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('danger')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold uppercase tracking-wider transition-all mt-auto cursor-pointer ${
-                  activeTab === 'danger'
-                    ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-450 font-black'
-                    : 'text-rose-550 dark:text-rose-500/70 hover:text-rose-500 hover:bg-rose-500/5 border border-transparent'
-                }`}
-              >
-                <AlertTriangle size={14} />
-                <span>Account</span>
               </button>
             </div>
 
@@ -528,59 +516,7 @@ export function ProfileSettings({ user, onUpdate, onClose, onDeleteAccount, them
                 </div>
               )}
 
-              {activeTab === 'danger' && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-rose-500 mb-2">Danger Zone</h3>
-                  
-                  {!showConfirm ? (
-                    <div className="p-4 rounded-2xl border border-rose-500/20 bg-rose-500/[0.02] space-y-3">
-                      <p className="text-xs text-rose-400 leading-relaxed font-semibold">
-                        Warning: Deleting your account will erase your conversations and is completely irreversible.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirm(true)}
-                        className="w-full bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 rounded-xl py-3 text-xs font-bold transition-all cursor-pointer uppercase tracking-wider"
-                      >
-                        Delete Account
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/5 space-y-4">
-                      <p className="text-xs text-theme-text leading-relaxed">
-                        To confirm deletion, please type your username <span className="text-theme-text font-mono font-black">{user.username}</span> below:
-                      </p>
-                      <input
-                        type="text"
-                        value={confirmUsername}
-                        onChange={(e) => setConfirmUsername(e.target.value)}
-                        placeholder="Type username to confirm"
-                        className="w-full bg-theme-bg/40 border border-rose-500/30 rounded-xl px-4 py-2.5 text-xs text-theme-text focus:outline-none focus:border-rose-500 transition-colors"
-                      />
-                      <div className="flex gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowConfirm(false);
-                            setConfirmUsername('');
-                          }}
-                          className="flex-1 bg-theme-bg/5 hover:bg-theme-bg/10 text-theme-text rounded-xl px-3 py-2 font-medium transition-all text-xs border border-theme-border cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          disabled={confirmUsername !== user.username}
-                          onClick={onDeleteAccount}
-                          className="flex-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:hover:bg-rose-600 text-white rounded-xl px-3 py-2 font-bold transition-all text-xs disabled:cursor-not-allowed shadow-md shadow-rose-900/20 uppercase tracking-wider cursor-pointer"
-                        >
-                          Confirm Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+
             </div>
           </div>
 

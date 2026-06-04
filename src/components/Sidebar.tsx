@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Search, LogOut, Settings, Plus, VolumeX, Ban, Users } from 'lucide-react';
+import { Search, LogOut, Settings, Plus, VolumeX, Ban, Users, ChevronDown, UserPlus, Trash2 } from 'lucide-react';
 import { ChatSession, User } from '../types';
 import { Avatar } from './Avatar';
+
+interface SavedAccount {
+  username: string;
+  displayName: string;
+  avatar: string;
+  token: string;
+}
 
 interface SidebarProps {
   currentUser: User;
@@ -14,6 +21,10 @@ interface SidebarProps {
   onNewChat: (username: string) => void;
   onViewProfile?: (user: User) => void;
   onShowCreateGroup: () => void;
+  savedAccounts: SavedAccount[];
+  onSwitchAccount: (token: string) => void;
+  onAddAccount: () => void;
+  onRemoveAccount: (username: string) => void;
 }
 
 export function Sidebar({
@@ -25,9 +36,27 @@ export function Sidebar({
   onSettings,
   onNewChat,
   onViewProfile,
-  onShowCreateGroup
+  onShowCreateGroup,
+  savedAccounts,
+  onSwitchAccount,
+  onAddAccount,
+  onRemoveAccount
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    }
+    if (showAccountMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showAccountMenu]);
 
   const filteredChats = chats.filter((chat) => {
     const hasInteracted = chat.messages.length > 0 || chat.id === activeChatId;
@@ -54,19 +83,97 @@ export function Sidebar({
 
   return (
     <div className="w-full md:w-[380px] lg:w-[420px] h-full glass border-r border-theme-border flex flex-col relative z-20">
-      <div className="p-6 flex items-center justify-between">
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={onSettings}>
+      <div className="p-6 flex items-center justify-between relative" ref={accountMenuRef}>
+        <div className="flex items-center gap-3 cursor-pointer group select-none" onClick={() => setShowAccountMenu(!showAccountMenu)}>
           <div className="relative">
             <Avatar user={currentUser} className="w-10 h-10 transition-transform group-hover:scale-105" />
             <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-              <Settings size={14} className="text-white" />
+              <ChevronDown size={14} className="text-white" />
             </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent truncate max-w-[150px]">{currentUser.displayName}</h1>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent truncate max-w-[130px]">{currentUser.displayName}</h1>
+              <ChevronDown size={14} className="text-theme-muted group-hover:text-theme-text transition-transform duration-200 mt-0.5 shrink-0" />
+            </div>
             <p className="text-xs text-theme-muted font-medium tracking-wide uppercase truncate max-w-[150px]">@{currentUser.username}</p>
           </div>
         </div>
+
+        {showAccountMenu && (
+          <div className="absolute top-[76px] left-6 w-[320px] bg-theme-card border border-theme-border rounded-2xl shadow-2xl z-50 p-3 animate-fade-in font-sans">
+            {/* Header */}
+            <div className="px-2 py-1.5 mb-2 border-b border-theme-border pb-2">
+              <p className="text-[10px] font-black text-theme-muted uppercase tracking-widest">Switch Accounts</p>
+            </div>
+            
+            {/* List of accounts */}
+            <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+              {savedAccounts.map((acc) => {
+                const isActive = acc.username === currentUser.username;
+                return (
+                  <div 
+                    key={acc.username}
+                    className={`flex items-center justify-between p-2 rounded-xl transition-colors ${
+                      isActive ? 'bg-indigo-500/10 text-theme-text' : 'hover:bg-theme-bg/10 text-theme-muted hover:text-theme-text'
+                    }`}
+                  >
+                    <button
+                      onClick={() => {
+                        if (!isActive) {
+                          onSwitchAccount(acc.token);
+                        }
+                        setShowAccountMenu(false);
+                      }}
+                      className="flex items-center gap-3 flex-1 text-left cursor-pointer select-none border-none bg-transparent p-0 outline-none"
+                    >
+                      <div className="relative shrink-0">
+                        <Avatar 
+                          user={{ username: acc.username, displayName: acc.displayName, avatar: acc.avatar }} 
+                          className="w-9 h-9" 
+                        />
+                        {isActive && (
+                          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border border-theme-card rounded-full" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate leading-tight">{acc.displayName}</p>
+                        <p className="text-xs opacity-70 truncate">@{acc.username}</p>
+                      </div>
+                    </button>
+                    
+                    {/* Remove account button */}
+                    {!isActive && (
+                      <button
+                        onClick={() => onRemoveAccount(acc.username)}
+                        className="p-1.5 rounded-lg hover:bg-rose-500/10 text-theme-muted hover:text-rose-400 transition-colors cursor-pointer border-none bg-transparent outline-none shrink-0"
+                        title="Remove Account"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="h-px bg-theme-border my-2" />
+
+            {/* Action Items */}
+            <button
+              onClick={() => {
+                onAddAccount();
+                setShowAccountMenu(false);
+              }}
+              className="w-full flex items-center gap-3 p-2.5 text-sm font-semibold text-indigo-405 dark:text-indigo-400 hover:bg-theme-bg/10 rounded-xl transition-colors cursor-pointer text-left border-none bg-transparent outline-none"
+            >
+              <UserPlus size={16} />
+              <span>Add Existing Account</span>
+            </button>
+
+
+          </div>
+        )}
         <div className="flex items-center space-x-2">
           <button
             onClick={onShowCreateGroup}
@@ -160,13 +267,16 @@ export function Sidebar({
                 }}
               >
                 <Avatar user={chat.peer} className="w-12 h-12" />
-                {(chat.peer.status === 'online' || chat.isTyping) && ( 
+                {!chat.peer.isGroup && (chat.peer.status === 'online' || chat.isTyping) && ( 
                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-theme-bg rounded-full" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-0.5">
                   <div className="flex items-center gap-1.5 min-w-0">
+                    {chat.peer.isGroup && (
+                      <Users size={14} className="text-indigo-400 shrink-0" />
+                    )}
                     <span className="font-semibold text-theme-text truncate">
                       {chat.peer.displayName}
                     </span>
@@ -187,7 +297,7 @@ export function Sidebar({
                       typeof chat.isTyping === 'string' ? `${chat.isTyping} is typing...` : 'Typing...'
                     ) : (
                       <>
-                        {isMe ? 'You: ' : ''}
+                        {isMe ? 'You: ' : (chat.peer.isGroup && lastMsg ? `${lastMsg.authorName || lastMsg.authorId}: ` : '')}
                         {lastMsg ? lastMsg.text || 'GIF' : 'No messages yet'}
                       </>
                     )}

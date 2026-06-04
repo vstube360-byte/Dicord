@@ -181,12 +181,13 @@ export async function sendMessage(
   mediaType?: string,
   mediaSize?: number,
   embeds?: any[],
-  replyTo?: string
+  replyTo?: string,
+  id?: string
 ): Promise<Message> {
   const data = await request<{ ok: boolean; message: ServerMessage }>('/api/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, to, text, gifUrl, mediaUrl, mediaType, mediaSize, embeds, replyTo }),
+    body: JSON.stringify({ token, to, text, gifUrl, mediaUrl, mediaType, mediaSize, embeds, replyTo, id }),
   });
   return toClientMessage(data.message);
 }

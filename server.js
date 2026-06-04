@@ -1449,7 +1449,7 @@ async function handleApi(request, response, requestUrl) {
         }] : []);
 
     const message = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: sanitizeId(postBody.id) || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       type: "chat",
       author: user.username,
       authorName: user.displayName,

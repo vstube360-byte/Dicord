@@ -595,10 +595,14 @@ export function MessageItem({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      initial={{ opacity: 0, y: 15, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
+      transition={{ 
+        layout: { type: "spring", stiffness: 350, damping: 35 },
+        opacity: { ease: "linear", duration: 0.2 },
+        default: { ease: [0.16, 1, 0.3, 1], duration: 0.35 }
+      }}
       className={`flex group relative items-center w-full px-4 py-1 hover:bg-white/[0.01] transition-all select-none ${
         showLongPressMenu ? 'z-[1000]' : 'hover:z-30 z-0'
       } ${
