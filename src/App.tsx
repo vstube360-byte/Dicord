@@ -231,7 +231,18 @@ export default function App() {
 
   const loadChats = useCallback(async (nextToken: string) => {
     const nextChats = await fetchChats(nextToken);
-    setChats(nextChats);
+    setChats((prev) => {
+      return nextChats.map((newChat) => {
+        const existing = prev.find((c) => c.id === newChat.id);
+        if (existing) {
+          return {
+            ...newChat,
+            messages: existing.messages,
+          };
+        }
+        return newChat;
+      });
+    });
   }, []);
 
   const handleAuthenticate = useCallback(
@@ -715,6 +726,7 @@ export default function App() {
         setCurrentUser(user);
         setActiveChatId(null);
         setActiveConversationId('');
+        setChats([]); // Clear old account's chats to prevent leaks
         await loadChats(targetToken);
       } catch (err) {
         showAlert('Switch Account Error', 'Failed to log in to the selected account. Please try logging in again.');
