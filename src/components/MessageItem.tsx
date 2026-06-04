@@ -840,8 +840,8 @@ export const MessageItem = React.memo(function MessageItem({
             }}
             className={`relative ${cornersClass} ${
               isMine
-                ? `gradient-msg p-4 text-white leading-relaxed w-fit ${isEditing ? 'w-full sm:min-w-[380px]' : ''}`
-                : 'glass p-4 text-theme-text leading-relaxed shadow-sm w-fit'
+                ? `gradient-msg p-4 text-white leading-relaxed w-fit max-w-full ${isEditing ? 'w-full sm:min-w-[380px]' : ''}`
+                : 'glass p-4 text-theme-text leading-relaxed shadow-sm w-fit max-w-full'
             } ${message.pending ? 'opacity-50 saturate-50 cursor-not-allowed select-none' : ''}`}
           >
             {/* Render Caption / Message Text */}
