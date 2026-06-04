@@ -12,7 +12,7 @@
       "mutedUsers": [],
       "appTheme": "dark",
       "status": "online",
-      "lastActive": "2026-06-03T15:17:48.261Z"
+      "lastActive": "2026-06-04T09:22:51.577Z"
     },
     "4321": {
       "username": "4321",
@@ -26,7 +26,7 @@
       "mutedUsers": [],
       "appTheme": "dark",
       "status": "online",
-      "lastActive": "2026-06-03T15:17:35.441Z"
+      "lastActive": "2026-06-04T09:22:27.771Z"
     }
   },
   "sessions": {
@@ -41,6 +41,14 @@
     "fc7bd9eac2647dcd4103bd9c9f48363ee607755aa5200b483f9e822be877ecf1": {
       "username": "1234",
       "createdAt": "2026-06-03T15:16:46.450Z"
+    },
+    "bb579a84de0ca7b66ce36e09f666049d52fb4a4e2c31b3f1abb2582f0b810ae7": {
+      "username": "4321",
+      "createdAt": "2026-06-04T09:22:27.724Z"
+    },
+    "c72557b4b39203973c020aca0f9c15666eee4bfefe135b74345dd7962abaf05c": {
+      "username": "1234",
+      "createdAt": "2026-06-04T09:22:51.537Z"
     }
   },
   "conversations": {
@@ -152,7 +160,42 @@
           "mediaSize": 0,
           "embed": null,
           "embeds": [],
-          "createdAt": "2026-06-03T15:17:15.898Z"
+          "createdAt": "2026-06-03T15:17:15.898Z",
+          "pinned": false
+        },
+        {
+          "reactions": {},
+          "replyTo": null,
+          "id": "1780564957608-a3b32c43f74db8",
+          "type": "chat",
+          "author": "4321",
+          "authorName": "4321",
+          "authorAvatar": "",
+          "text": "defrvgrfdv",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "embed": null,
+          "embeds": [],
+          "createdAt": "2026-06-04T09:22:37.608Z"
+        },
+        {
+          "id": "1780564974807-6511e070b5414",
+          "type": "chat",
+          "author": "4321",
+          "authorName": "4321",
+          "authorAvatar": "",
+          "text": "wdef",
+          "gifUrl": "",
+          "mediaUrl": "",
+          "mediaType": "",
+          "mediaSize": 0,
+          "replyTo": null,
+          "embed": null,
+          "embeds": [],
+          "reactions": {},
+          "createdAt": "2026-06-04T09:22:54.807Z"
         }
       ]
     }

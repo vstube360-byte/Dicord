@@ -184,7 +184,7 @@ export function Sidebar({
                 <div className="flex items-center justify-between gap-2">
                   <p className={`text-sm truncate font-medium ${chat.isTyping ? 'text-indigo-300' : 'text-theme-muted'}`}>
                     {chat.isTyping ? (
-                      'Typing...'
+                      typeof chat.isTyping === 'string' ? `${chat.isTyping} is typing...` : 'Typing...'
                     ) : (
                       <>
                         {isMe ? 'You: ' : ''}

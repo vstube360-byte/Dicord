@@ -11,6 +11,7 @@ interface ComposerProps {
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   mentionableUsers?: User[];
   onShowAlert?: (title: string, message: string) => void;
+  onTypingChange?: (isTyping: boolean) => void;
 }
 
 function formatBytes(bytes: number) {
@@ -171,7 +172,7 @@ const getFallbackGifs = (query: string): string[] => {
   return FALLBACK_GIFS.trending;
 };
 
-export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef, mentionableUsers = [], onShowAlert }: ComposerProps) {
+export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inputRef, mentionableUsers = [], onShowAlert, onTypingChange }: ComposerProps) {
   const [text, setText] = useState('');
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -179,6 +180,9 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
   }, []);
   const localRef = React.useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef || localRef;
+
+  const typingTimeoutRef = React.useRef<any>(null);
+  const isCurrentlyTypingRef = React.useRef(false);
 
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -541,6 +545,59 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
     };
   }, [gifSearchQuery, showGifPicker]);
 
+  const stopTyping = () => {
+    if (isCurrentlyTypingRef.current) {
+      isCurrentlyTypingRef.current = false;
+      onTypingChange?.(false);
+    }
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const handleInputChange = (val: string) => {
+    setText(val);
+    checkMentionTrigger(val, textareaRef.current?.selectionStart || 0);
+
+    if (onTypingChange) {
+      if (val.trim().length === 0) {
+        if (isCurrentlyTypingRef.current) {
+          isCurrentlyTypingRef.current = false;
+          onTypingChange(false);
+        }
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+      } else {
+        if (!isCurrentlyTypingRef.current) {
+          isCurrentlyTypingRef.current = true;
+          onTypingChange(true);
+        }
+
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+
+        typingTimeoutRef.current = setTimeout(() => {
+          if (isCurrentlyTypingRef.current) {
+            isCurrentlyTypingRef.current = false;
+            onTypingChange(false);
+          }
+        }, 2500);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -556,6 +613,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
       resolvedEmbeds
     );
     
+    stopTyping();
     setText('');
     setMediaUrl('');
     setMediaType('');
@@ -570,11 +628,14 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
   };
 
   const handleEmojiClick = (emoji: string) => {
-    setText((prev) => prev + emoji);
+    const nextText = text + emoji;
+    setText(nextText);
     textareaRef.current?.focus();
+    handleInputChange(nextText);
   };
 
   const handleGifSelect = (url: string) => {
+    stopTyping();
     onSend('', url);
     setShowGifPicker(false);
     textareaRef.current?.focus();
@@ -1085,8 +1146,7 @@ export function ChatComposer({ onSend, replyToMessage = null, onCancelReply, inp
             ref={textareaRef}
             value={text}
             onChange={(e) => {
-              setText(e.target.value);
-              checkMentionTrigger(e.target.value, e.target.selectionStart);
+              handleInputChange(e.target.value);
             }}
             onKeyUp={(e) => {
               const target = e.target as HTMLTextAreaElement;

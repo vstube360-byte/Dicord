@@ -32,6 +32,7 @@ import {
   removeGroupMember,
   leaveGroup,
   deleteGroup,
+  sendTypingStatus,
 } from './lib/api';
 
 const TOKEN_KEY = 'dicord-token';
@@ -200,11 +201,12 @@ export default function App() {
         peer,
         messages,
         unreadCount: existing?.unreadCount || 0,
+        isTyping: message && message.authorId !== currentUser.username ? false : existing?.isTyping,
       };
       const next = index >= 0 ? [...prev.slice(0, index), ...prev.slice(index + 1)] : prev;
       return [nextChat, ...next];
     });
-  }, []);
+  }, [currentUser]);
 
   const loadChats = useCallback(async (nextToken: string) => {
     const nextChats = await fetchChats(nextToken);
@@ -246,6 +248,22 @@ export default function App() {
     }
   }, [currentUser]);
 
+  const activeChatIdRef = React.useRef(activeChatId);
+  const activeConversationIdRef = React.useRef(activeConversationId);
+  const showGroupSettingsRef = React.useRef(showGroupSettings);
+
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    showGroupSettingsRef.current = showGroupSettings;
+  }, [showGroupSettings]);
+
   useEffect(() => {
     if (!token || !currentUser) {
       return;
@@ -254,6 +272,33 @@ export default function App() {
     const source = new EventSource(`/api/stream?token=${encodeURIComponent(token)}`);
     source.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.event === 'typing' && data.conversationId && data.username) {
+        setChats((prev) =>
+          prev.map((chat) => {
+            const expectedId = chat.peer.isGroup ? chat.peer.username : [currentUser.username, chat.peer.username].sort().join("__");
+            if (expectedId === data.conversationId) {
+              if (data.username !== currentUser.username) {
+                let typingVal: boolean | string = false;
+                if (data.isTyping) {
+                  if (chat.peer.isGroup) {
+                    const userChat = prev.find((c) => !c.peer.isGroup && c.peer.username === data.username);
+                    typingVal = userChat?.peer.displayName || data.username;
+                  } else {
+                    typingVal = chat.peer.displayName;
+                  }
+                }
+                return {
+                  ...chat,
+                  isTyping: typingVal,
+                };
+              }
+            }
+            return chat;
+          })
+        );
+        return;
+      }
 
       if (data.event === 'presence' && data.username) {
         setChats((prev) =>
@@ -353,11 +398,11 @@ export default function App() {
 
       if (data.event === 'delete-group' && data.conversationId) {
         setChats((prev) => prev.filter((chat) => chat.id !== data.conversationId));
-        if (activeChatId === data.conversationId) {
+        if (activeChatIdRef.current === data.conversationId) {
           setActiveChatId(null);
           setActiveConversationId('');
         }
-        if (showGroupSettings && showGroupSettings.username === data.conversationId) {
+        if (showGroupSettingsRef.current && showGroupSettingsRef.current.username === data.conversationId) {
           setShowGroupSettings(null);
         }
         return;
@@ -390,7 +435,7 @@ export default function App() {
         'Notification' in window &&
         Notification.permission === 'granted'
       ) {
-        const isCurrentlyChatting = data.conversationId === activeConversationId && document.hasFocus();
+        const isCurrentlyChatting = data.conversationId === activeConversationIdRef.current && document.hasFocus();
         if (!isCurrentlyChatting) {
           try {
             new Notification(peer.displayName, {
@@ -403,10 +448,10 @@ export default function App() {
         }
       }
 
-      if (data.conversationId === activeConversationId) {
+      if (data.conversationId === activeConversationIdRef.current) {
         setChats((prev) =>
           prev.map((chat) => {
-            if (chat.id !== activeChatId) {
+            if (chat.id !== activeChatIdRef.current) {
               return chat;
             }
             
@@ -434,7 +479,7 @@ export default function App() {
     };
 
     return () => source.close();
-  }, [activeChatId, activeConversationId, currentUser, token, upsertChat]);
+  }, [currentUser, token, upsertChat]);
 
   const handleUpdateProfile = useCallback(
     async (updates: Partial<User>) => {
@@ -777,6 +822,18 @@ export default function App() {
     }
   };
 
+  const handleTypingChange = useCallback(
+    async (peerUsername: string, isTyping: boolean) => {
+      if (!token) return;
+      try {
+        await sendTypingStatus(token, peerUsername, isTyping);
+      } catch (err) {
+        console.error('Failed to send typing status:', err);
+      }
+    },
+    [token]
+  );
+
   const handleSend = useCallback(
     async (text: string, gifUrl?: string, mediaUrl?: string, mediaType?: string, mediaSize?: number, embeds?: any[], replyTo?: string) => {
       if (!token || !activeChatId || !currentUser) {
@@ -1043,6 +1100,7 @@ export default function App() {
               chats={chats}
               onShowAlert={showAlert}
               onShowConfirm={showConfirm}
+              onTypingChange={handleTypingChange}
             />
           </div>
 

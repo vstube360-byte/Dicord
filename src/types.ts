@@ -74,5 +74,5 @@ export interface ChatSession {
   peer: User;
   messages: Message[];
   unreadCount: number;
-  isTyping?: boolean;
+  isTyping?: boolean | string;
 }

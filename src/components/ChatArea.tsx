@@ -27,6 +27,7 @@ interface ChatAreaProps {
   chats?: ChatSession[];
   onShowAlert?: (title: string, message: string) => void;
   onShowConfirm?: (title: string, message: string, onConfirm: () => void) => void;
+  onTypingChange?: (peerUsername: string, isTyping: boolean) => void;
 }
 
 function formatLastActive(isoString: string | undefined) {
@@ -87,7 +88,7 @@ function getWallpaperStyle(wallpaper: string, isLightMode: boolean) {
   return { background: wallpaper };
 }
 
-export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, onShowGroupSettings, theme, chats = [], onShowAlert, onShowConfirm }: ChatAreaProps) {
+export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, onToggleMute, onDeleteMessage, onEditMessage, onTogglePin, onToggleSidebar, onBack, onViewProfile, onUpdateUser, onShowGroupSettings, theme, chats = [], onShowAlert, onShowConfirm, onTypingChange }: ChatAreaProps) {
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
     setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches);
@@ -463,8 +464,12 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                 <div className="flex items-center text-xs font-medium mt-0.5">
                   {chat.peer.status === 'online' || chat.isTyping ? (
                     <>
-                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
-                      <span className="text-green-400">{chat.isTyping ? 'Typing...' : 'Online'}</span>
+                      <div className={`w-1.5 h-1.5 bg-green-400 rounded-full mr-2 ${chat.isTyping ? 'animate-pulse' : ''}`}></div>
+                      <span className="text-green-400">
+                        {chat.isTyping 
+                          ? (typeof chat.isTyping === 'string' ? `${chat.isTyping} is typing...` : 'Typing...') 
+                          : 'Online'}
+                      </span>
                     </>
                   ) : (
                     <>
@@ -668,7 +673,12 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
                   />
                 );
               })}
-              {chat.isTyping && <TypingIndicator key="typing" name={chat.peer.displayName.split(' ')[0]} />}
+              {chat.isTyping && (
+                <TypingIndicator
+                  key="typing"
+                  name={typeof chat.isTyping === 'string' ? chat.isTyping.split(' ')[0] : chat.peer.displayName.split(' ')[0]}
+                />
+              )}
             </AnimatePresence>
             
             {/* Spacer to prevent scroll issues */}
@@ -694,6 +704,11 @@ export function ChatArea({ chat, currentUser, onSend, onReact, onToggleBlock, on
               onCancelReply={() => setReplyToMessage(null)}
               mentionableUsers={mentionableUsers}
               onShowAlert={onShowAlert}
+              onTypingChange={(isTyping) => {
+                if (chat && onTypingChange) {
+                  onTypingChange(chat.peer.username, isTyping);
+                }
+              }}
             />
           )}
         </div>

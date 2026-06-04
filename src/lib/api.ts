@@ -365,3 +365,15 @@ export async function deleteGroup(
   });
 }
 
+export async function sendTypingStatus(
+  token: string,
+  peerUsername: string,
+  isTyping: boolean
+): Promise<void> {
+  await request<{ ok: boolean }>('/api/typing', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, with: peerUsername, isTyping }),
+  });
+}
+

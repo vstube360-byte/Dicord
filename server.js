@@ -693,6 +693,54 @@ async function runCleanupJob() {
     if (anyModified) {
       await saveDb();
     }
+
+    // Scan uploads folder and delete any files that are not referenced in the database
+    try {
+      const files = await fs.promises.readdir(uploadsDir);
+      const referencedFiles = new Set();
+
+      // Collect all mediaUrls from all conversations
+      for (const conv of Object.values(db.conversations)) {
+        if (conv.messages) {
+          for (const msg of conv.messages) {
+            if (msg.mediaUrl && msg.mediaUrl.startsWith("/uploads/")) {
+              referencedFiles.add(path.basename(msg.mediaUrl));
+            }
+          }
+        }
+        if (conv.avatar && conv.avatar.startsWith("/uploads/")) {
+          referencedFiles.add(path.basename(conv.avatar));
+        }
+      }
+
+      // Collect referenced files from users' avatar, bannerImage, wallpaper
+      for (const user of Object.values(db.users)) {
+        if (user.avatar && user.avatar.startsWith("/uploads/")) {
+          referencedFiles.add(path.basename(user.avatar));
+        }
+        if (user.bannerImage && user.bannerImage.startsWith("/uploads/")) {
+          referencedFiles.add(path.basename(user.bannerImage));
+        }
+        if (user.chatWallpaper && user.chatWallpaper.startsWith("/uploads/")) {
+          referencedFiles.add(path.basename(user.chatWallpaper));
+        }
+      }
+
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      for (const file of files) {
+        if (referencedFiles.has(file)) {
+          continue;
+        }
+        const filePath = path.join(uploadsDir, file);
+        const stats = await fs.promises.stat(filePath);
+        if (stats.mtime < twentyFourHoursAgo) {
+          await fs.promises.unlink(filePath);
+          console.log(`Deleted unreferenced media file: ${file}`);
+        }
+      }
+    } catch (uploadCleanupErr) {
+      console.error("Failed to clean up unreferenced uploads:", uploadCleanupErr.message);
+    }
   } catch (err) {
     console.error("Error running cleanup job:", err);
   }
@@ -864,6 +912,8 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
+    const displayName = db.users[username]?.displayName || username;
+
     // Delete user from db
     delete db.users[username];
     
@@ -874,10 +924,50 @@ async function handleApi(request, response, requestUrl) {
       }
     }
     
-    // Remove all conversations involving this user
+    // Remove user from groups, or delete direct messages involving this user
     for (const id of Object.keys(db.conversations)) {
-      if (db.conversations[id].participants.includes(username)) {
-        delete db.conversations[id];
+      const conv = db.conversations[id];
+      if (conv.participants.includes(username)) {
+        if (id.startsWith("group__")) {
+          // If it's a group, remove the user from the participants list
+          conv.participants = conv.participants.filter(p => p !== username);
+          if (conv.participants.length === 0) {
+            delete db.conversations[id];
+          } else {
+            // Append a system message about the user leaving/deleting their account
+            const message = {
+              id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              type: "chat",
+              author: "system",
+              authorName: "System",
+              authorAvatar: "",
+              text: `${displayName} has deleted their account`,
+              createdAt: new Date().toISOString()
+            };
+            conv.messages.push(message);
+
+            // Notify other participants of this group
+            const groupPeer = {
+              id: id,
+              username: id,
+              displayName: conv.name,
+              avatar: conv.avatar,
+              isGroup: true,
+              participants: conv.participants
+            };
+            conv.participants.forEach(participant => {
+              sendEvent(participant, {
+                event: "message",
+                conversationId: id,
+                message,
+                peer: groupPeer
+              });
+            });
+          }
+        } else {
+          // It's a DM, delete the conversation
+          delete db.conversations[id];
+        }
       }
     }
     
@@ -1204,6 +1294,7 @@ async function handleApi(request, response, requestUrl) {
 
   if (request.method === "POST" && requestUrl.pathname === "/api/delete-account") {
     const username = user.username;
+    const displayName = user.displayName || username;
     
     // Delete user from db
     delete db.users[username];
@@ -1215,10 +1306,50 @@ async function handleApi(request, response, requestUrl) {
       }
     }
     
-    // Remove all conversations involving this user
+    // Remove user from groups, or delete direct messages involving this user
     for (const id of Object.keys(db.conversations)) {
-      if (db.conversations[id].participants.includes(username)) {
-        delete db.conversations[id];
+      const conv = db.conversations[id];
+      if (conv.participants.includes(username)) {
+        if (id.startsWith("group__")) {
+          // If it's a group, remove the user from the participants list
+          conv.participants = conv.participants.filter(p => p !== username);
+          if (conv.participants.length === 0) {
+            delete db.conversations[id];
+          } else {
+            // Append a system message about the user leaving/deleting their account
+            const message = {
+              id: `sys-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              type: "chat",
+              author: "system",
+              authorName: "System",
+              authorAvatar: "",
+              text: `${displayName} has deleted their account`,
+              createdAt: new Date().toISOString()
+            };
+            conv.messages.push(message);
+
+            // Notify other participants of this group
+            const groupPeer = {
+              id: id,
+              username: id,
+              displayName: conv.name,
+              avatar: conv.avatar,
+              isGroup: true,
+              participants: conv.participants
+            };
+            conv.participants.forEach(participant => {
+              sendEvent(participant, {
+                event: "message",
+                conversationId: id,
+                message,
+                peer: groupPeer
+              });
+            });
+          }
+        } else {
+          // It's a DM, delete the conversation
+          delete db.conversations[id];
+        }
       }
     }
     
@@ -1574,6 +1705,20 @@ async function handleApi(request, response, requestUrl) {
       return;
     }
 
+    // Delete media file from disk if exists to prevent leaks
+    if (message.mediaUrl && message.mediaUrl.startsWith("/uploads/")) {
+      try {
+        const filename = path.basename(message.mediaUrl);
+        const filePath = path.join(uploadsDir, filename);
+        if (fs.existsSync(filePath)) {
+          await fs.promises.unlink(filePath);
+          console.log(`Deleted media file for deleted message: ${filename}`);
+        }
+      } catch (err) {
+        console.error(`Failed to delete media file from storage:`, err.message);
+      }
+    }
+
     conversation.messages.splice(messageIndex, 1);
 
     db.conversations[conversation.id].messages = conversation.messages;
@@ -1588,6 +1733,43 @@ async function handleApi(request, response, requestUrl) {
       sendEvent(user.username, payloadForClients);
       sendEvent(peerUsername, payloadForClients);
     }
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/typing") {
+    const rawWith = String(postBody.with || "").trim();
+    const isGroup = rawWith.startsWith("group__");
+    const peerUsername = isGroup ? rawWith : sanitizeUsername(rawWith);
+    const isTyping = !!postBody.isTyping;
+
+    if (!peerUsername) {
+      sendJson(response, 400, { error: "Chat peer is required." });
+      return;
+    }
+
+    const conversationId = isGroup ? peerUsername : [user.username, peerUsername].sort().join("__");
+
+    const payload = {
+      event: "typing",
+      conversationId,
+      username: user.username,
+      isTyping
+    };
+
+    if (isGroup) {
+      const conversation = db.conversations[peerUsername];
+      if (conversation && conversation.participants.includes(user.username)) {
+        for (const participant of conversation.participants) {
+          if (participant !== user.username) {
+            sendEvent(participant, payload);
+          }
+        }
+      }
+    } else {
+      sendEvent(peerUsername, payload);
+    }
+
     sendJson(response, 200, { ok: true });
     return;
   }
