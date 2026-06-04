@@ -19,6 +19,7 @@ import {
   fetchMe,
   login,
   register,
+  recoverAccount,
   resolveGif,
   sendMessage,
   sendReaction,
@@ -246,9 +247,18 @@ export default function App() {
   }, []);
 
   const handleAuthenticate = useCallback(
-    async (username: string, password: string, displayName: string | undefined, isRegister: boolean) => {
-      const result = isRegister
-        ? await register(username, password, displayName || username)
+    async (
+      username: string,
+      password: string,
+      displayName: string | undefined,
+      isRegister: boolean,
+      recoveryPassword?: string,
+      isRecovery?: boolean
+    ) => {
+      const result = isRecovery
+        ? await recoverAccount(username, recoveryPassword || '', password)
+        : isRegister
+        ? await register(username, password, displayName || username, recoveryPassword)
         : await login(username, password);
       localStorage.setItem(TOKEN_KEY, result.token);
       setToken(result.token);

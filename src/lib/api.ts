@@ -135,12 +135,13 @@ export async function login(username: string, password: string): Promise<Session
 export async function register(
   username: string,
   password: string,
-  displayName: string
+  displayName: string,
+  recoveryPassword?: string
 ): Promise<SessionResponse> {
   const data = await request<{ token: string; user: ServerUser }>('/api/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, displayName }),
+    body: JSON.stringify({ username, password, displayName, recoveryPassword }),
   });
   return { token: data.token, user: toClientUser(data.user) };
 }
@@ -389,5 +390,18 @@ export async function sendReadReceipt(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, with: peerUsername }),
   });
+}
+
+export async function recoverAccount(
+  username: string,
+  recoveryPassword: string,
+  newPassword: string
+): Promise<SessionResponse> {
+  const data = await request<{ token: string; user: ServerUser }>('/api/recover-account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, recoveryPassword, newPassword }),
+  });
+  return { token: data.token, user: toClientUser(data.user) };
 }
 

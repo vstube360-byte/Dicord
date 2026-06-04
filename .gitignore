@@ -3,3 +3,7 @@ node_modules
 .env
 dist
 dicord-*.json
+data.json
+data.json.tmp
+uploads/
+desktop.ini

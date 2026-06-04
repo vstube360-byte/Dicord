@@ -6,7 +6,7 @@ import { Avatar } from './Avatar';
 
 interface ProfileSettingsProps {
   user: User;
-  onUpdate: (updates: Partial<User>) => void;
+  onUpdate: (updates: Partial<User>) => Promise<any> | void;
   onClose: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
@@ -74,6 +74,11 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  // Recovery inputs
+  const [newRecoveryPassword, setNewRecoveryPassword] = useState('');
+  const [isUpdatingRecovery, setIsUpdatingRecovery] = useState(false);
+  const [recoveryStatus, setRecoveryStatus] = useState('');
+
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -133,6 +138,36 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
       console.error('Failed to delete account:', err);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleUpdateRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRecoveryPassword.trim()) return;
+    setIsUpdatingRecovery(true);
+    setRecoveryStatus('');
+    try {
+      await onUpdate({ recoveryPassword: newRecoveryPassword.trim() });
+      setRecoveryStatus('Recovery password successfully updated.');
+      setNewRecoveryPassword('');
+    } catch (err) {
+      setRecoveryStatus(err instanceof Error ? err.message : 'Failed to update recovery password.');
+    } finally {
+      setIsUpdatingRecovery(false);
+    }
+  };
+
+  const handleClearRecovery = async () => {
+    setIsUpdatingRecovery(true);
+    setRecoveryStatus('');
+    try {
+      await onUpdate({ recoveryPassword: '' });
+      setRecoveryStatus('Recovery password successfully disabled.');
+      setNewRecoveryPassword('');
+    } catch (err) {
+      setRecoveryStatus(err instanceof Error ? err.message : 'Failed to clear recovery password.');
+    } finally {
+      setIsUpdatingRecovery(false);
     }
   };
 
@@ -541,6 +576,73 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
                     >
                       {privacy.showWebsite ? <Eye size={18} /> : <EyeOff size={18} />}
                     </button>
+                  </div>
+
+                  {/* Account Recovery Password section */}
+                  <div className="mt-6 pt-6 border-t border-theme-border/60 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-theme-muted flex items-center gap-1.5 select-none">
+                      <ShieldCheck size={14} className="text-indigo-400" />
+                      <span>Account Security (Password Recovery)</span>
+                    </h4>
+                    <p className="text-[11px] text-theme-muted leading-relaxed">
+                      Configure a recovery password. If you ever get locked out of your account, you can use your recovery password on the login screen to reset your main password.
+                    </p>
+
+                    <div className="p-3.5 bg-white/[0.02] border border-theme-border rounded-2xl space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-theme-text">Recovery Status</span>
+                        <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                          user.hasRecoveryPassword 
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        }`}>
+                          {user.hasRecoveryPassword ? 'Enabled' : 'Not Configured'}
+                        </span>
+                      </div>
+
+                      <form onSubmit={handleUpdateRecovery} className="space-y-3 pt-1">
+                        <div className="flex flex-col gap-1.5 text-left">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-theme-muted ml-0.5">
+                            {user.hasRecoveryPassword ? 'Change Recovery Password' : 'Set Recovery Password'}
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="password"
+                              value={newRecoveryPassword}
+                              onChange={(e) => setNewRecoveryPassword(e.target.value)}
+                              placeholder="Enter recovery password"
+                              className="flex-1 bg-theme-bg/40 border border-theme-border focus:border-indigo-500 rounded-xl px-4 py-2 text-xs text-theme-text focus:outline-none transition-colors font-semibold"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!newRecoveryPassword.trim() || isUpdatingRecovery}
+                              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold transition-all cursor-pointer shadow-md uppercase tracking-wider"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+
+                      {user.hasRecoveryPassword && (
+                        <div className="flex justify-start">
+                          <button
+                            type="button"
+                            disabled={isUpdatingRecovery}
+                            onClick={handleClearRecovery}
+                            className="text-xs text-rose-500 hover:text-rose-400 font-bold transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                          >
+                            Disable / Clear Recovery Password
+                          </button>
+                        </div>
+                      )}
+
+                      {recoveryStatus && (
+                        <div className="text-[10px] font-bold text-indigo-400 bg-indigo-500/5 p-2.5 rounded-xl text-center select-none animate-fade-in border border-indigo-500/10">
+                          {recoveryStatus}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

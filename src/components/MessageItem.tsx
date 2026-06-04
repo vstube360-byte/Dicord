@@ -601,14 +601,10 @@ export const MessageItem = React.memo(function MessageItem({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
-      transition={{ 
-        layout: { type: "spring", stiffness: 350, damping: 35 },
-        opacity: { ease: "linear", duration: 0.2 },
-        default: { ease: [0.16, 1, 0.3, 1], duration: 0.35 }
-      }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className={`flex group relative items-center w-full px-4 py-1 hover:bg-white/[0.01] transition-all select-none ${
         showLongPressMenu ? 'z-[1000]' : 'hover:z-30 z-0'
       } ${

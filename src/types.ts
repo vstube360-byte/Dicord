@@ -25,6 +25,8 @@ export interface User {
   badges?: string[];
   isGroup?: boolean;
   participants?: string[];
+  hasRecoveryPassword?: boolean;
+  recoveryPassword?: string;
 }
 
 export interface Message {
