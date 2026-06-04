@@ -10,6 +10,7 @@ interface ProfileSettingsProps {
   onClose: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
+  onDeleteAccount?: () => void | Promise<void>;
 }
 
 const THEME_STYLES: Record<string, { border: string; glow: string; text: string; bg: string }> = {
@@ -47,8 +48,8 @@ const PRESET_THEMES = [
   { id: 'violet', name: 'Violet Velvet', color: 'bg-violet-500' },
 ];
 
-export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onThemeChange }: ProfileSettingsProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'visuals' | 'privacy'>('profile');
+export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onThemeChange, onDeleteAccount }: ProfileSettingsProps) {
+  const [activeTab, setActiveTab] = useState<'profile' | 'visuals' | 'privacy' | 'delete'>('profile');
   
   // Profile inputs
   const [displayName, setDisplayName] = useState(user.displayName);
@@ -70,8 +71,8 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
   );
 
   // DangerZone inputs
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmUsername, setConfirmUsername] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +120,20 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
       privacySettings: privacy,
     });
     onClose();
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== user.username) return;
+    setDeleting(true);
+    try {
+      if (onDeleteAccount) {
+        await onDeleteAccount();
+      }
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const joinDate = user.createdAt 
@@ -188,6 +203,20 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
               >
                 <Shield size={14} />
                 <span>Privacy</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('delete');
+                  setDeleteConfirmText('');
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  activeTab === 'delete'
+                    ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
+                    : 'text-rose-550/70 hover:text-rose-500 hover:bg-rose-500/5 border border-transparent'
+                }`}
+              >
+                <AlertTriangle size={14} />
+                <span>Delete</span>
               </button>
             </div>
 
@@ -513,6 +542,46 @@ export function ProfileSettings({ user, onUpdate, onClose, theme: appTheme, onTh
                       {privacy.showWebsite ? <Eye size={18} /> : <EyeOff size={18} />}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'delete' && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-rose-500 flex items-center gap-1.5 mb-2 select-none">
+                    <AlertTriangle size={16} />
+                    <span>Delete Account</span>
+                  </h3>
+                  
+                  <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl text-xs text-rose-300 leading-relaxed select-none">
+                    <p className="font-bold mb-1">⚠️ Crucial Warning: Irreversible Action</p>
+                    <p>Deleting your account will permanently purge your user profile, messages, group chat memberships, media uploads, and all personal settings from our servers. You will be logged out instantly and this account cannot be recovered.</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-theme-muted mb-1.5 ml-1">
+                      To confirm, type your username: <span className="text-white font-extrabold select-all">@{user.username}</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder={user.username}
+                      className="w-full bg-theme-bg/40 border border-rose-500/20 focus:border-rose-500 rounded-xl px-4 py-2.5 text-xs text-theme-text focus:outline-none transition-colors font-semibold"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={deleteConfirmText !== user.username || deleting}
+                    onClick={handleDeleteAccount}
+                    className="w-full mt-2 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:hover:bg-rose-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-rose-600/15 uppercase tracking-wider"
+                  >
+                    {deleting ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      'Permanently Delete Account'
+                    )}
+                  </button>
                 </div>
               )}
 

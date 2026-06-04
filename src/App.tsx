@@ -1323,6 +1323,7 @@ export default function App() {
               onClose={() => setShowProfileSettings(false)}
               theme={theme}
               onThemeChange={handleThemeChange}
+              onDeleteAccount={handleDeleteAccount}
             />
           )}
 
