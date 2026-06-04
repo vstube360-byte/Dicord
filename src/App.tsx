@@ -145,6 +145,7 @@ export default function App() {
         await onConfirm();
       },
       onCancel: () => {
+        setInPageDialog(prev => ({ ...prev, isOpen: false }));
         if (onCancel) onCancel();
       }
     });
